@@ -1,36 +1,98 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Project Translator (Traditional Chinese)
 
-## Getting Started
+一個使用 `Next.js` 建置的網頁系統，支援以下兩種輸入方式：
 
-First, run the development server:
+1. 選取本機專案資料夾（資料夾內多檔上傳）
+2. 輸入公開 GitHub repo URL（自動 clone）
+
+系統會將指定副檔名文件翻譯成繁體中文，並輸出：
+
+- 翻譯後資料夾（伺服器端 output）
+- 可下載 ZIP
+
+> 設計重點：**翻譯永遠在 `output` 目錄，不覆寫 `input` 原始檔。**
+
+## Tech Stack
+
+- Next.js 16 (App Router, Route Handlers)
+- TypeScript
+- Vitest + Testing Library
+- Archiver (ZIP 輸出)
+
+## 支援翻譯引擎
+
+- `openai`（已實作）
+- `gemini`（已實作，可擴充模型）
+- `local`（Adapter 骨架，預設 fallback，不設定 endpoint 時回傳前綴字串）
+
+## 快速開始
+
+### 1) 安裝依賴
+
+```bash
+npm install
+```
+
+### 2) 設定環境變數
+
+```bash
+cp .env.example .env.local
+```
+
+再依需求填入 API 金鑰（至少填你要用的 provider）。
+
+### 3) 啟動開發環境
 
 ```bash
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+開啟 `http://localhost:3000`。
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## 使用方式
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+### A. 本機專案資料夾
 
-## Learn More
+1. 資料來源選 `本機專案資料夾`
+2. 選翻譯引擎
+3. 調整副檔名白名單（預設 `.md,.txt,.rst,.adoc`）
+4. 選取資料夾並送出
+5. 任務完成後下載 ZIP
 
-To learn more about Next.js, take a look at the following resources:
+### B. GitHub Repo URL
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+1. 資料來源選 `GitHub Repo URL`
+2. 填入公開 repo（格式 `https://github.com/owner/repo`）
+3. 送出後系統會 clone 並翻譯
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## 測試與驗證
 
-## Deploy on Vercel
+```bash
+npm test
+npm run lint
+npm run build
+```
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## API 概覽
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- `POST /api/jobs`
+  - `multipart/form-data`：建立 folder 任務
+  - `application/json`：建立 github 任務
+- `GET /api/jobs/:id`：查詢任務狀態
+- `GET /api/jobs/:id/tree`：取得翻譯檔案樹
+- `GET /api/jobs/:id/download`：下載 ZIP
+- `GET /api/jobs/:id/file?path=...`：讀取單一翻譯檔
+
+## 目前限制
+
+- GitHub 僅支援公開 repo
+- 任務儲存在記憶體（process restart 會遺失狀態）
+- 以單機背景工作處理，不含分散式 queue
+- 有上傳大小與檔案數限制（避免濫用）
+
+## 後續可擴充
+
+- 私有 repo（GitHub token / OAuth）
+- 任務佇列（Redis/BullMQ）
+- 更完整的 local model provider（如 Ollama）
+- 任務清理排程與持久化儲存

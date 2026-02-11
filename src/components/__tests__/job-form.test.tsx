@@ -1,0 +1,88 @@
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { describe, expect, it, vi } from 'vitest';
+
+import { JobForm } from '@/components/job-form';
+
+describe('JobForm', () => {
+  it('submits github payload when github mode is selected', async () => {
+    const onSubmit = vi.fn().mockResolvedValue(undefined);
+
+    render(
+      <JobForm
+        onSubmit={onSubmit}
+        isSubmitting={false}
+        providerStatus={{ openai: true, gemini: false, local: true }}
+        onSaveCredentials={vi.fn()}
+      />,
+    );
+
+    fireEvent.change(screen.getByLabelText('資料來源'), {
+      target: { value: 'github' },
+    });
+
+    fireEvent.change(screen.getByLabelText('GitHub Repo URL'), {
+      target: { value: 'https://github.com/vercel/next.js' },
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: '開始翻譯' }));
+
+    expect(onSubmit).toHaveBeenCalledWith(
+      expect.objectContaining({
+        sourceType: 'github',
+        repoUrl: 'https://github.com/vercel/next.js',
+      }),
+    );
+  });
+
+  it('disables submit when selected translator key is missing', () => {
+    const onSubmit = vi.fn().mockResolvedValue(undefined);
+
+    render(
+      <JobForm
+        onSubmit={onSubmit}
+        isSubmitting={false}
+        providerStatus={{ openai: false, gemini: false, local: true }}
+        onSaveCredentials={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByText('OpenAI：未設定')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '開始翻譯' })).toBeDisabled();
+
+    fireEvent.change(screen.getByLabelText(/翻譯引擎/), {
+      target: { value: 'local' },
+    });
+
+    expect(screen.getByRole('button', { name: '開始翻譯' })).not.toBeDisabled();
+  });
+
+  it('accepts key input fields and saves credentials', async () => {
+    const onSaveCredentials = vi.fn().mockResolvedValue(undefined);
+
+    render(
+      <JobForm
+        onSubmit={vi.fn()}
+        isSubmitting={false}
+        providerStatus={{ openai: false, gemini: false, local: true }}
+        onSaveCredentials={onSaveCredentials}
+      />,
+    );
+
+    fireEvent.change(screen.getByLabelText('OpenAI API Key'), {
+      target: { value: 'sk-openai-demo' },
+    });
+
+    fireEvent.change(screen.getByLabelText('Gemini API Key'), {
+      target: { value: 'sk-gemini-demo' },
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: '儲存金鑰' }));
+
+    await waitFor(() => {
+      expect(onSaveCredentials).toHaveBeenCalledWith({
+        openaiApiKey: 'sk-openai-demo',
+        geminiApiKey: 'sk-gemini-demo',
+      });
+    });
+  });
+});
