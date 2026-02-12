@@ -25,6 +25,11 @@ describe('validateOutputDirectoryPath', () => {
     expect(normalized).toBe(path.join(os.homedir(), 'project-translate-output'));
   });
 
+  it('maps simple folder name to managed output directory', () => {
+    const normalized = validateOutputDirectoryPath('translated-ja');
+    expect(normalized).toBe(path.join(os.tmpdir(), 'project-translate-jobs', 'outputs', 'translated-ja'));
+  });
+
   it('maps folder name to writable tmp path on vercel', () => {
     const originalVercel = process.env.VERCEL;
 

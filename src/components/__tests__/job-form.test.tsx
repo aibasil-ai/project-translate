@@ -31,10 +31,12 @@ describe('JobForm', () => {
   });
 
   it('fills output directory by folder-picker button', async () => {
+    const requestPermissionMock = vi.fn().mockResolvedValue('granted');
     const showDirectoryPickerMock = vi.fn().mockResolvedValue({
       name: 'project-translate-output',
       getDirectoryHandle: vi.fn(),
       getFileHandle: vi.fn(),
+      requestPermission: requestPermissionMock,
     });
 
     Object.defineProperty(window, 'showDirectoryPicker', {
@@ -54,7 +56,8 @@ describe('JobForm', () => {
     fireEvent.click(screen.getByRole('button', { name: '選擇本機資料夾' }));
 
     await waitFor(() => {
-      expect(showDirectoryPickerMock).toHaveBeenCalledTimes(1);
+      expect(showDirectoryPickerMock).toHaveBeenCalledWith({ mode: 'readwrite' });
+      expect(requestPermissionMock).toHaveBeenCalledWith({ mode: 'readwrite' });
       expect(screen.getByLabelText('output 輸出資料夾位置')).toHaveValue(
         'project-translate-output',
       );
@@ -66,6 +69,7 @@ describe('JobForm', () => {
       name: 'selected-output-folder',
       getDirectoryHandle: vi.fn(),
       getFileHandle: vi.fn(),
+      requestPermission: vi.fn().mockResolvedValue('granted'),
     };
 
     const showDirectoryPickerMock = vi.fn().mockResolvedValue(outputDirectoryHandle);

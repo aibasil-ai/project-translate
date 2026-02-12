@@ -61,6 +61,30 @@ async function writeFileToSelectedDirectory(
   }
 }
 
+function isPermissionActivationError(error: unknown) {
+  if (!(error instanceof Error)) {
+    return false;
+  }
+
+  const normalizedMessage = error.message.toLowerCase();
+
+  return normalizedMessage.includes('user activation is required')
+    || normalizedMessage.includes('request permissions')
+    || normalizedMessage.includes('permission');
+}
+
+async function ensureOutputDirectoryWritable(outputDirectoryHandle: OutputDirectoryHandle) {
+  if (!outputDirectoryHandle.queryPermission) {
+    return;
+  }
+
+  const permissionState = await outputDirectoryHandle.queryPermission({ mode: 'readwrite' });
+
+  if (permissionState !== 'granted') {
+    throw new Error('尚未取得 output 資料夾寫入權限，請重新點選「選擇本機資料夾」並允許寫入。');
+  }
+}
+
 export function TranslatorApp() {
   const [job, setJob] = useState<JobPublicView | null>(null);
   const [files, setFiles] = useState<TreeFileItem[]>([]);
@@ -112,6 +136,8 @@ export function TranslatorApp() {
       return;
     }
 
+    await ensureOutputDirectoryWritable(outputDirectoryHandle);
+
     setUploadNotice('正在將翻譯結果同步到你選擇的本機資料夾...');
 
     for (const translatedFile of translatedFiles) {
@@ -133,7 +159,16 @@ export function TranslatorApp() {
       }
 
       const fileContent = await response.arrayBuffer();
-      await writeFileToSelectedDirectory(outputDirectoryHandle, translatedFile.path, fileContent);
+
+      try {
+        await writeFileToSelectedDirectory(outputDirectoryHandle, translatedFile.path, fileContent);
+      } catch (error) {
+        if (isPermissionActivationError(error)) {
+          throw new Error('瀏覽器需要使用者操作才能授權寫入，請重新點選「選擇本機資料夾」後再開始翻譯。');
+        }
+
+        throw error;
+      }
     }
 
     setUploadNotice(`已將 ${translatedFiles.length} 個檔案輸出到你選擇的本機資料夾。`);

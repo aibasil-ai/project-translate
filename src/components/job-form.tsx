@@ -18,6 +18,10 @@ export interface OutputFileHandle {
   createWritable: () => Promise<OutputFileWritable>;
 }
 
+export type OutputPermissionMode = 'read' | 'readwrite';
+
+export type OutputPermissionState = 'granted' | 'denied' | 'prompt';
+
 export interface OutputDirectoryHandle {
   name: string;
   getDirectoryHandle: (
@@ -32,10 +36,12 @@ export interface OutputDirectoryHandle {
       create?: boolean;
     },
   ) => Promise<OutputFileHandle>;
+  queryPermission?: (options?: { mode?: OutputPermissionMode }) => Promise<OutputPermissionState>;
+  requestPermission?: (options?: { mode?: OutputPermissionMode }) => Promise<OutputPermissionState>;
 }
 
 type DirectoryPickerWindow = Window & {
-  showDirectoryPicker?: () => Promise<OutputDirectoryHandle>;
+  showDirectoryPicker?: (options?: { mode?: OutputPermissionMode }) => Promise<OutputDirectoryHandle>;
 };
 
 export interface JobFormPayload {
@@ -153,7 +159,19 @@ export function JobForm({
 
     try {
       setIsPickingOutputFolder(true);
-      const directoryHandle = await directoryPickerWindow.showDirectoryPicker();
+      const directoryHandle = await directoryPickerWindow.showDirectoryPicker({ mode: 'readwrite' });
+
+      if (directoryHandle.requestPermission) {
+        const permissionState = await directoryHandle.requestPermission({ mode: 'readwrite' });
+
+        if (permissionState !== 'granted') {
+          setOutputFolder('');
+          setOutputDirectoryHandle(null);
+          setValidationMessage('需要允許 output 資料夾寫入權限，請重新選擇並允許。');
+          return;
+        }
+      }
+
       setOutputFolder(directoryHandle.name);
       setOutputDirectoryHandle(directoryHandle);
     } catch (error) {

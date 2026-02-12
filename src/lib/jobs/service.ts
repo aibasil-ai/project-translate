@@ -60,6 +60,10 @@ function validateOutputFolderName(rawFolderName: string) {
   return rawFolderName;
 }
 
+function isNamedOutputFolder(rawOutputFolder: string) {
+  return !rawOutputFolder.includes('/') && !rawOutputFolder.includes('\\') && OUTPUT_FOLDER_NAME_PATTERN.test(rawOutputFolder);
+}
+
 function isPathInsideDirectory(targetPath: string, baseDirectory: string) {
   const relativePath = path.relative(baseDirectory, targetPath);
   return relativePath === '' || (!relativePath.startsWith('..') && !path.isAbsolute(relativePath));
@@ -72,7 +76,7 @@ export function validateOutputDirectoryPath(rawOutputFolder: string) {
     throw new UserInputError('請輸入 output 輸出資料夾位置');
   }
 
-  if (process.env.VERCEL && !path.isAbsolute(normalizedOutputFolder) && !normalizedOutputFolder.startsWith('~')) {
+  if (isNamedOutputFolder(normalizedOutputFolder)) {
     const safeFolderName = validateOutputFolderName(normalizedOutputFolder);
     return path.join(getJobsBaseDirectory(), 'outputs', safeFolderName);
   }
