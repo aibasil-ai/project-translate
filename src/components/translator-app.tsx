@@ -109,6 +109,7 @@ export function TranslatorApp() {
 
   const activeJobId = job?.id ?? null;
   const activeJobStatus = job?.status ?? null;
+  const isJobActive = activeJobStatus === 'queued' || activeJobStatus === 'running';
 
   async function refreshJob(jobId: string) {
     const response = await fetch(`/api/jobs/${jobId}`);
@@ -421,6 +422,7 @@ export function TranslatorApp() {
           onSubmit={handleSubmit}
           onSaveCredentials={handleSaveCredentials}
           isSubmitting={isSubmitting}
+          isJobActive={isJobActive}
           helperMessage={uploadNotice}
           providerStatus={providerStatus}
           defaultModels={defaultModels}

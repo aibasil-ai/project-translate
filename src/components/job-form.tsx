@@ -67,6 +67,7 @@ export interface CredentialPayload {
 
 interface JobFormProps {
   isSubmitting: boolean;
+  isJobActive?: boolean;
   helperMessage?: string | null;
   providerStatus: ProviderStatusMap;
   defaultModels?: ProviderDefaultModelMap;
@@ -103,6 +104,7 @@ function resolveDirectoryDisplayPath(directoryHandle: OutputDirectoryHandle) {
 
 export function JobForm({
   isSubmitting,
+  isJobActive = false,
   helperMessage,
   providerStatus,
   defaultModels = fallbackProviderDefaultModels,
@@ -162,6 +164,7 @@ export function JobForm({
 
   const submitDisabled =
     isSubmitting ||
+    isJobActive ||
     isProviderStatusLoading ||
     isSavingCredentials ||
     isPickingOutputFolder ||
@@ -239,6 +242,11 @@ export function JobForm({
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setValidationMessage('');
+
+    if (isJobActive) {
+      setValidationMessage('翻譯進行中，請等待完成或先停止翻譯。');
+      return;
+    }
 
     if (!isSelectedProviderReady) {
       setValidationMessage(missingProviderHint(translator) ?? '翻譯引擎尚未就緒');
@@ -480,7 +488,13 @@ export function JobForm({
       {credentialMessage ? <p className="hint">{credentialMessage}</p> : null}
 
       <button type="submit" disabled={submitDisabled}>
-        {isSubmitting ? '處理中...' : isProviderStatusLoading ? '檢查設定中...' : '開始翻譯'}
+        {isSubmitting
+          ? '處理中...'
+          : isJobActive
+            ? '翻譯中...'
+            : isProviderStatusLoading
+              ? '檢查設定中...'
+              : '開始翻譯'}
       </button>
     </form>
   );
