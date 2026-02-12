@@ -39,16 +39,47 @@ export function assertTranslatorConfiguration(translator: string) {
   }
 }
 
+function expandHomeDirectoryPath(rawPath: string) {
+  if (rawPath === '~') {
+    return os.homedir();
+  }
+
+  if (rawPath.startsWith('~/') || rawPath.startsWith('~\\')) {
+    return path.join(os.homedir(), rawPath.slice(2));
+  }
+
+  return rawPath;
+}
+
+export function validateOutputDirectoryPath(rawOutputFolder: string) {
+  const normalizedOutputFolder = rawOutputFolder.trim();
+
+  if (!normalizedOutputFolder) {
+    throw new UserInputError('請輸入 output 輸出資料夾位置');
+  }
+
+  const resolvedOutputPath = path.resolve(expandHomeDirectoryPath(normalizedOutputFolder));
+  const rootPath = path.parse(resolvedOutputPath).root;
+
+  if (resolvedOutputPath === rootPath) {
+    throw new UserInputError('output 輸出資料夾不可為根目錄');
+  }
+
+  return resolvedOutputPath;
+}
+
 interface WorkspacePaths {
   root: string;
   input: string;
   output: string;
+  outputFolder: string;
   zip: string;
 }
 
 interface FolderJobInput {
   translator: string;
   targetLanguage: string;
+  outputFolder: string;
   allowedExtensions: string[];
   files: File[];
   paths: string[];
@@ -57,6 +88,7 @@ interface FolderJobInput {
 interface GithubJobInput {
   translator: string;
   targetLanguage: string;
+  outputFolder: string;
   allowedExtensions: string[];
   repoUrl: string;
 }
@@ -65,16 +97,17 @@ function getJobsBaseDirectory() {
   return process.env.JOBS_BASE_DIR ?? path.join(os.tmpdir(), 'project-translate-jobs');
 }
 
-async function prepareWorkspace(jobId: string): Promise<WorkspacePaths> {
+async function prepareWorkspace(jobId: string, outputFolder: string): Promise<WorkspacePaths> {
+  const normalizedOutputDirectory = validateOutputDirectoryPath(outputFolder);
   const root = path.join(getJobsBaseDirectory(), jobId);
   const input = path.join(root, 'input');
-  const output = path.join(root, 'output');
+  const output = normalizedOutputDirectory;
   const zip = path.join(root, 'translated.zip');
 
   await fs.mkdir(input, { recursive: true });
   await fs.mkdir(output, { recursive: true });
 
-  return { root, input, output, zip };
+  return { root, input, output, outputFolder: normalizedOutputDirectory, zip };
 }
 
 function normalizeExtension(value: string) {
@@ -152,7 +185,6 @@ async function stageUploadedFiles(inputRoot: string, files: File[], paths: strin
   let totalBytes = 0;
 
   for (const { file, relativePath } of stagedFiles) {
-
     if (file.size > MAX_SINGLE_UPLOAD_BYTES) {
       throw new UserInputError(`File too large: ${relativePath}`);
     }
@@ -253,6 +285,7 @@ function createJobBaseRecord({
     repoUrl,
     translator,
     targetLanguage,
+    outputFolder: workspace.outputFolder,
     allowedExtensions,
     workspaceRoot: workspace.root,
     inputRoot: inputRoot ?? workspace.input,
@@ -265,7 +298,7 @@ export async function createFolderTranslationJob(input: FolderJobInput) {
   assertTranslatorConfiguration(input.translator);
 
   const jobId = crypto.randomUUID();
-  const workspace = await prepareWorkspace(jobId);
+  const workspace = await prepareWorkspace(jobId, input.outputFolder);
 
   await stageUploadedFiles(workspace.input, input.files, input.paths);
 
@@ -287,7 +320,7 @@ export async function createGithubTranslationJob(input: GithubJobInput) {
 
   const normalizedRepoUrl = validatePublicGithubUrl(input.repoUrl);
   const jobId = crypto.randomUUID();
-  const workspace = await prepareWorkspace(jobId);
+  const workspace = await prepareWorkspace(jobId, input.outputFolder);
 
   const repoRoot = await cloneGithubRepoToInput(normalizedRepoUrl, workspace.input);
 
@@ -321,6 +354,7 @@ export function toPublicJobView(job: JobRecord, baseUrl?: string): JobPublicView
     repoUrl: job.repoUrl,
     translator: job.translator,
     targetLanguage: job.targetLanguage,
+    outputFolder: job.outputFolder,
     allowedExtensions: job.allowedExtensions,
     status: job.status,
     progress: job.progress,

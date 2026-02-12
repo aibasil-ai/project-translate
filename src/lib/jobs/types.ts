@@ -16,6 +16,7 @@ export interface JobRecord {
   repoUrl?: string;
   translator: string;
   targetLanguage: string;
+  outputFolder: string;
   allowedExtensions: string[];
   workspaceRoot: string;
   inputRoot: string;
@@ -35,6 +36,7 @@ export interface CreateJobInput {
   repoUrl?: string;
   translator: string;
   targetLanguage: string;
+  outputFolder: string;
   allowedExtensions: string[];
   workspaceRoot: string;
   inputRoot: string;
@@ -48,6 +50,7 @@ export interface JobPublicView {
   repoUrl?: string;
   translator: string;
   targetLanguage: string;
+  outputFolder: string;
   allowedExtensions: string[];
   status: JobStatus;
   progress: JobProgress;

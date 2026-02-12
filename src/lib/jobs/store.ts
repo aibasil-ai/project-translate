@@ -24,6 +24,7 @@ export function createInMemoryJobStore(): JobStore {
         repoUrl: input.repoUrl,
         translator: input.translator,
         targetLanguage: input.targetLanguage,
+        outputFolder: input.outputFolder,
         allowedExtensions: input.allowedExtensions,
         workspaceRoot: input.workspaceRoot,
         inputRoot: input.inputRoot,

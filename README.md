@@ -27,6 +27,20 @@
 
 ## 快速開始
 
+### 0) 確認 Node.js 版本
+
+本專案使用 Next.js 16，需 Node.js `>=20.9.0`。
+
+```bash
+node -v
+```
+
+若你使用 `nvm`，可直接套用專案版本：
+
+```bash
+nvm use
+```
+
 ### 1) 安裝依賴
 
 ```bash
@@ -49,21 +63,48 @@ npm run dev
 
 開啟 `http://localhost:3000`。
 
+### 4) 若出現「無法連線 localhost」
+
+若你的環境有設定 `HTTP_PROXY` / `http_proxy`，有機會把本機流量錯誤導到 proxy，導致連不上 `localhost:3000`。
+
+先檢查：
+
+```bash
+env | grep -i proxy
+```
+
+臨時排除本機位址：
+
+```bash
+export NO_PROXY=localhost,127.0.0.1
+export no_proxy=localhost,127.0.0.1
+```
+
+再測試：
+
+```bash
+curl -I http://localhost:3000
+```
+
 ## 使用方式
 
 ### A. 本機專案資料夾
 
 1. 資料來源選 `本機專案資料夾`
 2. 選翻譯引擎
-3. 調整副檔名白名單（預設 `.md,.txt,.rst,.adoc`）
-4. 選取資料夾並送出
-5. 任務完成後下載 ZIP
+3. 選擇目標語言（含 `日語 (ja-JP)`）
+4. **按鈕選擇本機 output 輸出資料夾（必填）**
+5. 調整副檔名白名單（預設 `.md,.txt,.rst,.adoc`）
+6. 選取資料夾並送出
+7. 在任務狀態查看進度條百分比，完成後下載 ZIP（翻譯檔案會輸出到你指定的路徑）
 
 ### B. GitHub Repo URL
 
 1. 資料來源選 `GitHub Repo URL`
 2. 填入公開 repo（格式 `https://github.com/owner/repo`）
-3. 送出後系統會 clone 並翻譯
+3. 選擇目標語言（含 `日語 (ja-JP)`）
+4. **按鈕選擇本機 output 輸出資料夾（必填）**
+5. 送出後系統會 clone 並翻譯，右側可看到進度條
 
 ## 測試與驗證
 

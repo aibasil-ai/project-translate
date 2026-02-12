@@ -10,6 +10,7 @@ describe('job store', () => {
       sourceType: 'folder',
       translator: 'local',
       targetLanguage: 'Traditional Chinese (zh-TW)',
+      outputFolder: 'output',
       allowedExtensions: ['.md'],
       workspaceRoot: '/tmp/job-1',
       inputRoot: '/tmp/job-1/input',

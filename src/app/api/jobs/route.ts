@@ -31,6 +31,7 @@ export async function POST(request: Request) {
 
       const translator = asString(formData.get('translator'), 'openai');
       const targetLanguage = asString(formData.get('targetLanguage'), 'Traditional Chinese (zh-TW)');
+      const outputFolder = asString(formData.get('outputFolder'));
       const allowedExtensions = parseAllowedExtensions(asString(formData.get('allowedExtensions')));
 
       const files = formData
@@ -45,6 +46,7 @@ export async function POST(request: Request) {
       const job = await createFolderTranslationJob({
         translator,
         targetLanguage,
+        outputFolder,
         allowedExtensions,
         files,
         paths,
@@ -70,6 +72,7 @@ export async function POST(request: Request) {
         typeof payload.targetLanguage === 'string'
           ? payload.targetLanguage
           : 'Traditional Chinese (zh-TW)',
+      outputFolder: typeof payload.outputFolder === 'string' ? payload.outputFolder : '',
       allowedExtensions: parseAllowedExtensions(payload.allowedExtensions),
       repoUrl: String(payload.repoUrl ?? ''),
     });

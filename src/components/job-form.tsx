@@ -9,10 +9,15 @@ import {
 
 export type SourceType = 'folder' | 'github';
 
+type DirectoryPickerWindow = Window & {
+  showDirectoryPicker?: () => Promise<{ name: string }>;
+};
+
 export interface JobFormPayload {
   sourceType: SourceType;
   translator: keyof ProviderStatusMap;
   targetLanguage: string;
+  outputFolder: string;
   allowedExtensions: string;
   repoUrl?: string;
   files?: File[];
@@ -38,6 +43,12 @@ const providerLabelMap: Record<keyof ProviderStatusMap, string> = {
   local: 'Local Adapter',
 };
 
+const targetLanguageOptions = [
+  { label: '繁體中文 (zh-TW)', value: 'Traditional Chinese (zh-TW)' },
+  { label: '日語 (ja-JP)', value: 'Japanese (ja-JP)' },
+  { label: '英語 (en-US)', value: 'English (en-US)' },
+];
+
 export function JobForm({
   isSubmitting,
   helperMessage,
@@ -49,6 +60,7 @@ export function JobForm({
   const [sourceType, setSourceType] = useState<SourceType>('folder');
   const [translator, setTranslator] = useState<keyof ProviderStatusMap>('openai');
   const [targetLanguage, setTargetLanguage] = useState('Traditional Chinese (zh-TW)');
+  const [outputFolder, setOutputFolder] = useState('');
   const [allowedExtensions, setAllowedExtensions] = useState('.md,.txt,.rst,.adoc');
   const [repoUrl, setRepoUrl] = useState('');
   const [files, setFiles] = useState<File[]>([]);
@@ -57,6 +69,7 @@ export function JobForm({
   const [geminiApiKey, setGeminiApiKey] = useState('');
   const [credentialMessage, setCredentialMessage] = useState('');
   const [isSavingCredentials, setIsSavingCredentials] = useState(false);
+  const [isPickingOutputFolder, setIsPickingOutputFolder] = useState(false);
 
   const folderInputRef = useRef<HTMLInputElement>(null);
 
@@ -77,7 +90,11 @@ export function JobForm({
   }, [isProviderStatusLoading, isSelectedProviderReady, translator]);
 
   const submitDisabled =
-    isSubmitting || isProviderStatusLoading || isSavingCredentials || !isSelectedProviderReady;
+    isSubmitting ||
+    isProviderStatusLoading ||
+    isSavingCredentials ||
+    isPickingOutputFolder ||
+    !isSelectedProviderReady;
 
   async function handleSaveCredentials() {
     setCredentialMessage('');
@@ -96,12 +113,40 @@ export function JobForm({
     }
   }
 
+  async function handlePickOutputFolder() {
+    setValidationMessage('');
+
+    const directoryPickerWindow = window as DirectoryPickerWindow;
+    if (!directoryPickerWindow.showDirectoryPicker) {
+      setValidationMessage('目前瀏覽器不支援資料夾選擇，請手動輸入路徑');
+      return;
+    }
+
+    try {
+      setIsPickingOutputFolder(true);
+      const directoryHandle = await directoryPickerWindow.showDirectoryPicker();
+      setOutputFolder(directoryHandle.name);
+    } catch (error) {
+      if (error instanceof DOMException && error.name === 'AbortError') {
+        return;
+      }
+      setValidationMessage(error instanceof Error ? error.message : '選擇 output 資料夾失敗');
+    } finally {
+      setIsPickingOutputFolder(false);
+    }
+  }
+
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setValidationMessage('');
 
     if (!isSelectedProviderReady) {
       setValidationMessage(missingProviderHint(translator) ?? '翻譯引擎尚未就緒');
+      return;
+    }
+
+    if (!outputFolder.trim()) {
+      setValidationMessage('請輸入 output 輸出資料夾位置');
       return;
     }
 
@@ -119,6 +164,7 @@ export function JobForm({
       sourceType,
       translator,
       targetLanguage,
+      outputFolder: outputFolder.trim(),
       allowedExtensions,
       repoUrl: sourceType === 'github' ? repoUrl.trim() : undefined,
       files: sourceType === 'folder' ? files : undefined,
@@ -201,6 +247,44 @@ export function JobForm({
         ) : null}
       </label>
 
+      <label className="field" htmlFor="targetLanguage">
+        <span>目標語言</span>
+        <select
+          id="targetLanguage"
+          value={targetLanguage}
+          onChange={(event) => setTargetLanguage(event.target.value)}
+          disabled={isSubmitting}
+        >
+          {targetLanguageOptions.map((option) => (
+            <option key={option.value} value={option.value}>
+              {option.label}
+            </option>
+          ))}
+        </select>
+      </label>
+
+      <label className="field" htmlFor="outputFolder">
+        <span>output 輸出資料夾位置</span>
+        <div className="inline-actions">
+          <input
+            id="outputFolder"
+            value={outputFolder}
+            onChange={(event) => setOutputFolder(event.target.value)}
+            placeholder="例如：/home/username/project-translate-output"
+            disabled={isSubmitting || isPickingOutputFolder}
+          />
+          <button
+            type="button"
+            onClick={() => {
+              void handlePickOutputFolder();
+            }}
+            disabled={isSubmitting || isPickingOutputFolder}
+          >
+            {isPickingOutputFolder ? '選擇中...' : '選擇本機資料夾'}
+          </button>
+        </div>
+      </label>
+
       <label className="field" htmlFor="allowedExtensions">
         <span>翻譯副檔名（逗號分隔）</span>
         <input
@@ -208,16 +292,6 @@ export function JobForm({
           value={allowedExtensions}
           onChange={(event) => setAllowedExtensions(event.target.value)}
           placeholder=".md,.txt,.rst,.adoc"
-          disabled={isSubmitting}
-        />
-      </label>
-
-      <label className="field" htmlFor="targetLanguage">
-        <span>目標語言</span>
-        <input
-          id="targetLanguage"
-          value={targetLanguage}
-          onChange={(event) => setTargetLanguage(event.target.value)}
           disabled={isSubmitting}
         />
       </label>

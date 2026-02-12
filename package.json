@@ -2,10 +2,13 @@
   "name": "demo5",
   "version": "0.1.0",
   "private": true,
+  "engines": {
+    "node": ">=20.9.0"
+  },
   "scripts": {
-    "dev": "next dev",
-    "build": "next build",
-    "start": "next start",
+    "dev": "npx -y node@20 node_modules/next/dist/bin/next dev -H 0.0.0.0",
+    "build": "npx -y node@20 node_modules/next/dist/bin/next build",
+    "start": "npx -y node@20 node_modules/next/dist/bin/next start -H 0.0.0.0",
     "lint": "eslint",
     "test": "vitest run",
     "test:watch": "vitest"

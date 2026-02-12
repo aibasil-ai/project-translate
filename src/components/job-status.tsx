@@ -18,6 +18,14 @@ const statusLabelMap: Record<string, string> = {
   failed: '失敗',
 };
 
+function toProgressPercent(job: JobPublicView) {
+  if (job.progress.totalFiles <= 0) {
+    return job.status === 'completed' ? 100 : 0;
+  }
+
+  return Math.round((job.progress.processedFiles / job.progress.totalFiles) * 100);
+}
+
 export function JobStatus({ job, files, errorMessage }: JobStatusProps) {
   if (!job) {
     return (
@@ -27,6 +35,8 @@ export function JobStatus({ job, files, errorMessage }: JobStatusProps) {
       </section>
     );
   }
+
+  const progressPercent = toProgressPercent(job);
 
   return (
     <section className="panel">
@@ -40,9 +50,26 @@ export function JobStatus({ job, files, errorMessage }: JobStatusProps) {
         {statusLabelMap[job.status] ?? job.status}
       </p>
       <p>
-        <strong>進度：</strong>
-        {job.progress.processedFiles}/{job.progress.totalFiles}（失敗 {job.progress.failedFiles}）
+        <strong>輸出資料夾：</strong>
+        {job.outputFolder}
       </p>
+
+      <div className="progress-container">
+        <div className="progress-header">
+          <strong>翻譯進度</strong>
+          <span>{progressPercent}%</span>
+        </div>
+        <progress
+          aria-label="翻譯進度"
+          className="progress-bar"
+          max={Math.max(job.progress.totalFiles, 1)}
+          value={job.progress.processedFiles}
+        />
+        <small className="hint">
+          {job.progress.processedFiles}/{job.progress.totalFiles}（失敗 {job.progress.failedFiles}）
+        </small>
+      </div>
+
       {job.progress.currentFile ? (
         <p>
           <strong>目前檔案：</strong>

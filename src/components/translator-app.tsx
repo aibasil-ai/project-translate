@@ -120,6 +120,7 @@ export function TranslatorApp() {
         formData.set('sourceType', 'folder');
         formData.set('translator', payload.translator);
         formData.set('targetLanguage', payload.targetLanguage);
+        formData.set('outputFolder', payload.outputFolder);
         formData.set('allowedExtensions', payload.allowedExtensions);
 
         for (const entry of accepted) {
@@ -142,6 +143,7 @@ export function TranslatorApp() {
             repoUrl: payload.repoUrl,
             translator: payload.translator,
             targetLanguage: payload.targetLanguage,
+            outputFolder: payload.outputFolder,
             allowedExtensions: payload.allowedExtensions,
           }),
         });
