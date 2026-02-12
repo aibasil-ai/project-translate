@@ -24,6 +24,7 @@ const MAX_UPLOAD_FILE_COUNT = 3000;
 const MAX_SINGLE_UPLOAD_BYTES = 2 * 1024 * 1024;
 const MAX_TOTAL_UPLOAD_BYTES = 80 * 1024 * 1024;
 const MAX_TRANSLATE_FILE_BYTES = 2 * 1024 * 1024;
+const OUTPUT_FOLDER_NAME_PATTERN = /^[a-zA-Z0-9][a-zA-Z0-9._-]{0,63}$/;
 
 export class UserInputError extends Error {}
 
@@ -51,6 +52,19 @@ function expandHomeDirectoryPath(rawPath: string) {
   return rawPath;
 }
 
+function validateOutputFolderName(rawFolderName: string) {
+  if (!OUTPUT_FOLDER_NAME_PATTERN.test(rawFolderName)) {
+    throw new UserInputError('output 資料夾名稱格式不合法，僅支援英數、點、底線與連字號');
+  }
+
+  return rawFolderName;
+}
+
+function isPathInsideDirectory(targetPath: string, baseDirectory: string) {
+  const relativePath = path.relative(baseDirectory, targetPath);
+  return relativePath === '' || (!relativePath.startsWith('..') && !path.isAbsolute(relativePath));
+}
+
 export function validateOutputDirectoryPath(rawOutputFolder: string) {
   const normalizedOutputFolder = rawOutputFolder.trim();
 
@@ -58,11 +72,20 @@ export function validateOutputDirectoryPath(rawOutputFolder: string) {
     throw new UserInputError('請輸入 output 輸出資料夾位置');
   }
 
+  if (process.env.VERCEL && !path.isAbsolute(normalizedOutputFolder) && !normalizedOutputFolder.startsWith('~')) {
+    const safeFolderName = validateOutputFolderName(normalizedOutputFolder);
+    return path.join(getJobsBaseDirectory(), 'outputs', safeFolderName);
+  }
+
   const resolvedOutputPath = path.resolve(expandHomeDirectoryPath(normalizedOutputFolder));
   const rootPath = path.parse(resolvedOutputPath).root;
 
   if (resolvedOutputPath === rootPath) {
     throw new UserInputError('output 輸出資料夾不可為根目錄');
+  }
+
+  if (process.env.VERCEL && !isPathInsideDirectory(resolvedOutputPath, os.tmpdir())) {
+    throw new UserInputError('Vercel 環境僅支援 /tmp 路徑，請輸入 /tmp/... 或使用資料夾選擇按鈕');
   }
 
   return resolvedOutputPath;

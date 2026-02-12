@@ -32,6 +32,7 @@ export function JobStatus({ job, files, errorMessage }: JobStatusProps) {
       <section className="panel">
         <h2>任務狀態</h2>
         <p>尚未建立任務。</p>
+        {errorMessage ? <p className="error">{errorMessage}</p> : null}
       </section>
     );
   }

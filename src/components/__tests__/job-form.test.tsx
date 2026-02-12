@@ -31,7 +31,11 @@ describe('JobForm', () => {
   });
 
   it('fills output directory by folder-picker button', async () => {
-    const showDirectoryPickerMock = vi.fn().mockResolvedValue({ name: 'project-translate-output' });
+    const showDirectoryPickerMock = vi.fn().mockResolvedValue({
+      name: 'project-translate-output',
+      getDirectoryHandle: vi.fn(),
+      getFileHandle: vi.fn(),
+    });
 
     Object.defineProperty(window, 'showDirectoryPicker', {
       configurable: true,
@@ -55,6 +59,54 @@ describe('JobForm', () => {
         'project-translate-output',
       );
     });
+  });
+
+  it('submits picked output directory handle with payload', async () => {
+    const outputDirectoryHandle = {
+      name: 'selected-output-folder',
+      getDirectoryHandle: vi.fn(),
+      getFileHandle: vi.fn(),
+    };
+
+    const showDirectoryPickerMock = vi.fn().mockResolvedValue(outputDirectoryHandle);
+    const onSubmit = vi.fn().mockResolvedValue(undefined);
+
+    Object.defineProperty(window, 'showDirectoryPicker', {
+      configurable: true,
+      value: showDirectoryPickerMock,
+    });
+
+    render(
+      <JobForm
+        onSubmit={onSubmit}
+        isSubmitting={false}
+        providerStatus={{ openai: true, gemini: false, local: true }}
+        onSaveCredentials={vi.fn()}
+      />,
+    );
+
+    fireEvent.change(screen.getByLabelText('資料來源'), {
+      target: { value: 'github' },
+    });
+
+    fireEvent.change(screen.getByLabelText('GitHub Repo URL'), {
+      target: { value: 'https://github.com/vercel/next.js' },
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: '選擇本機資料夾' }));
+
+    await waitFor(() => {
+      expect(showDirectoryPickerMock).toHaveBeenCalledTimes(1);
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: '開始翻譯' }));
+
+    expect(onSubmit).toHaveBeenCalledWith(
+      expect.objectContaining({
+        outputFolder: 'selected-output-folder',
+        outputDirectoryHandle,
+      }),
+    );
   });
 
   it('submits github payload when github mode is selected', async () => {

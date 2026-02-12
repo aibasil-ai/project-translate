@@ -24,4 +24,37 @@ describe('validateOutputDirectoryPath', () => {
     const normalized = validateOutputDirectoryPath('~/project-translate-output');
     expect(normalized).toBe(path.join(os.homedir(), 'project-translate-output'));
   });
+
+  it('maps folder name to writable tmp path on vercel', () => {
+    const originalVercel = process.env.VERCEL;
+
+    process.env.VERCEL = '1';
+    try {
+      const normalized = validateOutputDirectoryPath('translated-ja');
+      expect(normalized).toBe(path.join(os.tmpdir(), 'project-translate-jobs', 'outputs', 'translated-ja'));
+    } finally {
+      if (originalVercel === undefined) {
+        delete process.env.VERCEL;
+      } else {
+        process.env.VERCEL = originalVercel;
+      }
+    }
+  });
+
+  it('rejects non-tmp absolute path on vercel', () => {
+    const originalVercel = process.env.VERCEL;
+
+    process.env.VERCEL = '1';
+    try {
+      expect(() => validateOutputDirectoryPath('/home/username/output')).toThrow(
+        'Vercel 環境僅支援 /tmp 路徑',
+      );
+    } finally {
+      if (originalVercel === undefined) {
+        delete process.env.VERCEL;
+      } else {
+        process.env.VERCEL = originalVercel;
+      }
+    }
+  });
 });

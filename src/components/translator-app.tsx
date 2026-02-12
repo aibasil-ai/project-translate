@@ -6,6 +6,7 @@ import {
   JobForm,
   type CredentialPayload,
   type JobFormPayload,
+  type OutputDirectoryHandle,
 } from '@/components/job-form';
 import { JobStatus, type TreeFileItem } from '@/components/job-status';
 import type { JobPublicView } from '@/lib/jobs/types';
@@ -18,6 +19,48 @@ const defaultProviderStatus: ProviderStatusMap = {
   local: true,
 };
 
+function splitSafeRelativePath(relativePath: string) {
+  const pathSegments = relativePath.split('/').filter(Boolean);
+
+  if (pathSegments.length === 0 || pathSegments.some((segment) => segment === '.' || segment === '..')) {
+    throw new Error(`無效的輸出檔案路徑：${relativePath}`);
+  }
+
+  return pathSegments;
+}
+
+async function writeFileToSelectedDirectory(
+  outputDirectoryHandle: OutputDirectoryHandle,
+  relativePath: string,
+  fileContent: ArrayBuffer,
+) {
+  const pathSegments = splitSafeRelativePath(relativePath);
+  const fileName = pathSegments[pathSegments.length - 1];
+
+  if (!fileName) {
+    throw new Error(`無效的輸出檔名：${relativePath}`);
+  }
+
+  let currentDirectoryHandle = outputDirectoryHandle;
+
+  for (const folderName of pathSegments.slice(0, -1)) {
+    currentDirectoryHandle = await currentDirectoryHandle.getDirectoryHandle(folderName, {
+      create: true,
+    });
+  }
+
+  const outputFileHandle = await currentDirectoryHandle.getFileHandle(fileName, {
+    create: true,
+  });
+  const writable = await outputFileHandle.createWritable();
+
+  try {
+    await writable.write(new Uint8Array(fileContent));
+  } finally {
+    await writable.close();
+  }
+}
+
 export function TranslatorApp() {
   const [job, setJob] = useState<JobPublicView | null>(null);
   const [files, setFiles] = useState<TreeFileItem[]>([]);
@@ -26,6 +69,9 @@ export function TranslatorApp() {
   const [uploadNotice, setUploadNotice] = useState<string | null>(null);
   const [providerStatus, setProviderStatus] = useState<ProviderStatusMap>(defaultProviderStatus);
   const [isProviderStatusLoading, setIsProviderStatusLoading] = useState(true);
+  const [pickedOutputDirectoryHandle, setPickedOutputDirectoryHandle] =
+    useState<OutputDirectoryHandle | null>(null);
+  const [syncedOutputJobId, setSyncedOutputJobId] = useState<string | null>(null);
 
   const activeJobId = job?.id ?? null;
   const activeJobStatus = job?.status ?? null;
@@ -50,7 +96,47 @@ export function TranslatorApp() {
       throw new Error(typeof data?.error === 'string' ? data.error : '無法取得翻譯檔案清單');
     }
 
-    setFiles(Array.isArray(data.files) ? (data.files as TreeFileItem[]) : []);
+    const translatedFiles = Array.isArray(data.files) ? (data.files as TreeFileItem[]) : [];
+    setFiles(translatedFiles);
+
+    return translatedFiles;
+  }
+
+  async function syncOutputToSelectedDirectory(
+    jobId: string,
+    translatedFiles: TreeFileItem[],
+    outputDirectoryHandle: OutputDirectoryHandle,
+  ) {
+    if (translatedFiles.length === 0) {
+      setUploadNotice('翻譯任務完成，但沒有可輸出的檔案。');
+      return;
+    }
+
+    setUploadNotice('正在將翻譯結果同步到你選擇的本機資料夾...');
+
+    for (const translatedFile of translatedFiles) {
+      const response = await fetch(`/api/jobs/${jobId}/file?path=${encodeURIComponent(translatedFile.path)}`);
+
+      if (!response.ok) {
+        let errorMessage = '讀取翻譯檔案失敗';
+
+        try {
+          const payload = await response.json();
+          if (typeof payload?.error === 'string') {
+            errorMessage = payload.error;
+          }
+        } catch {
+          // Ignore JSON parse errors and keep fallback message.
+        }
+
+        throw new Error(`${translatedFile.path}: ${errorMessage}`);
+      }
+
+      const fileContent = await response.arrayBuffer();
+      await writeFileToSelectedDirectory(outputDirectoryHandle, translatedFile.path, fileContent);
+    }
+
+    setUploadNotice(`已將 ${translatedFiles.length} 個檔案輸出到你選擇的本機資料夾。`);
   }
 
   async function loadProviderStatus() {
@@ -100,6 +186,8 @@ export function TranslatorApp() {
       setErrorMessage(null);
       setUploadNotice(null);
       setFiles([]);
+      setPickedOutputDirectoryHandle(payload.outputDirectoryHandle ?? null);
+      setSyncedOutputJobId(null);
 
       let response: Response;
 
@@ -203,10 +291,36 @@ export function TranslatorApp() {
       return;
     }
 
-    void loadTree(activeJobId).catch((error) => {
-      setErrorMessage(error instanceof Error ? error.message : '載入檔案樹失敗');
-    });
-  }, [activeJobId, activeJobStatus]);
+    let cancelled = false;
+
+    void (async () => {
+      try {
+        const translatedFiles = await loadTree(activeJobId);
+
+        if (cancelled) {
+          return;
+        }
+
+        if (!pickedOutputDirectoryHandle || syncedOutputJobId === activeJobId) {
+          return;
+        }
+
+        await syncOutputToSelectedDirectory(activeJobId, translatedFiles, pickedOutputDirectoryHandle);
+
+        if (!cancelled) {
+          setSyncedOutputJobId(activeJobId);
+        }
+      } catch (error) {
+        if (!cancelled) {
+          setErrorMessage(error instanceof Error ? error.message : '載入檔案樹失敗');
+        }
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [activeJobId, activeJobStatus, pickedOutputDirectoryHandle, syncedOutputJobId]);
 
   return (
     <main className="container">

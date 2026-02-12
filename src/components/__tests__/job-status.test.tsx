@@ -32,4 +32,11 @@ describe('JobStatus', () => {
     expect(screen.getByText('40%')).toBeInTheDocument();
     expect(screen.getByRole('progressbar', { name: '翻譯進度' })).toBeInTheDocument();
   });
+
+  it('shows error message even when no job exists yet', () => {
+    render(<JobStatus job={null} files={[]} errorMessage="建立任務失敗" />);
+
+    expect(screen.getByText('尚未建立任務。')).toBeInTheDocument();
+    expect(screen.getByText('建立任務失敗')).toBeInTheDocument();
+  });
 });

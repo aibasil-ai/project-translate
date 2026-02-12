@@ -9,8 +9,33 @@ import {
 
 export type SourceType = 'folder' | 'github';
 
+export interface OutputFileWritable {
+  write: (data: string | Blob | ArrayBuffer | Uint8Array) => Promise<void>;
+  close: () => Promise<void>;
+}
+
+export interface OutputFileHandle {
+  createWritable: () => Promise<OutputFileWritable>;
+}
+
+export interface OutputDirectoryHandle {
+  name: string;
+  getDirectoryHandle: (
+    name: string,
+    options?: {
+      create?: boolean;
+    },
+  ) => Promise<OutputDirectoryHandle>;
+  getFileHandle: (
+    name: string,
+    options?: {
+      create?: boolean;
+    },
+  ) => Promise<OutputFileHandle>;
+}
+
 type DirectoryPickerWindow = Window & {
-  showDirectoryPicker?: () => Promise<{ name: string }>;
+  showDirectoryPicker?: () => Promise<OutputDirectoryHandle>;
 };
 
 export interface JobFormPayload {
@@ -18,6 +43,7 @@ export interface JobFormPayload {
   translator: keyof ProviderStatusMap;
   targetLanguage: string;
   outputFolder: string;
+  outputDirectoryHandle?: OutputDirectoryHandle | null;
   allowedExtensions: string;
   repoUrl?: string;
   files?: File[];
@@ -61,6 +87,9 @@ export function JobForm({
   const [translator, setTranslator] = useState<keyof ProviderStatusMap>('openai');
   const [targetLanguage, setTargetLanguage] = useState('Traditional Chinese (zh-TW)');
   const [outputFolder, setOutputFolder] = useState('');
+  const [outputDirectoryHandle, setOutputDirectoryHandle] = useState<OutputDirectoryHandle | null>(
+    null,
+  );
   const [allowedExtensions, setAllowedExtensions] = useState('.md,.txt,.rst,.adoc');
   const [repoUrl, setRepoUrl] = useState('');
   const [files, setFiles] = useState<File[]>([]);
@@ -126,6 +155,7 @@ export function JobForm({
       setIsPickingOutputFolder(true);
       const directoryHandle = await directoryPickerWindow.showDirectoryPicker();
       setOutputFolder(directoryHandle.name);
+      setOutputDirectoryHandle(directoryHandle);
     } catch (error) {
       if (error instanceof DOMException && error.name === 'AbortError') {
         return;
@@ -165,6 +195,7 @@ export function JobForm({
       translator,
       targetLanguage,
       outputFolder: outputFolder.trim(),
+      outputDirectoryHandle,
       allowedExtensions,
       repoUrl: sourceType === 'github' ? repoUrl.trim() : undefined,
       files: sourceType === 'folder' ? files : undefined,
@@ -269,7 +300,10 @@ export function JobForm({
           <input
             id="outputFolder"
             value={outputFolder}
-            onChange={(event) => setOutputFolder(event.target.value)}
+            onChange={(event) => {
+              setOutputFolder(event.target.value);
+              setOutputDirectoryHandle(null);
+            }}
             placeholder="例如：/home/username/project-translate-output"
             disabled={isSubmitting || isPickingOutputFolder}
           />
