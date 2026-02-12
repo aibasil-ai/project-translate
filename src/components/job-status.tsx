@@ -49,6 +49,7 @@ export function JobStatus({
   }
 
   const progressPercent = toProgressPercent(job);
+  const showTranslatedFiles = job.status === 'completed' && files.length > 0;
 
   return (
     <section className="panel">
@@ -120,7 +121,11 @@ export function JobStatus({
         </div>
       ) : null}
 
-      {files.length > 0 ? (
+      {job.status === 'queued' || job.status === 'running' ? (
+        <p className="hint">翻譯中，完成後才會顯示翻譯結果檔案。</p>
+      ) : null}
+
+      {showTranslatedFiles ? (
         <div>
           <h3>翻譯結果檔案</h3>
           <ul className="files">

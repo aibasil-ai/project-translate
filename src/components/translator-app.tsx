@@ -349,6 +349,16 @@ export function TranslatorApp() {
       return;
     }
 
+    if (activeJobStatus === 'queued' || activeJobStatus === 'running') {
+      setFiles([]);
+    }
+  }, [activeJobId, activeJobStatus]);
+
+  useEffect(() => {
+    if (!activeJobId) {
+      return;
+    }
+
     if (activeJobStatus !== 'queued' && activeJobStatus !== 'running') {
       return;
     }

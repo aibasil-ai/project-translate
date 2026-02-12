@@ -183,13 +183,13 @@ async function prepareWorkspace(jobId: string, outputFolder: string): Promise<Wo
   const normalizedOutputDirectory = validateOutputDirectoryPath(outputFolder);
   const root = path.join(getJobsBaseDirectory(), jobId);
   const input = path.join(root, 'input');
-  const output = normalizedOutputDirectory;
+  const output = path.join(normalizedOutputDirectory, jobId);
   const zip = path.join(root, 'translated.zip');
 
   await fs.mkdir(input, { recursive: true });
   await fs.mkdir(output, { recursive: true });
 
-  return { root, input, output, outputFolder: normalizedOutputDirectory, zip };
+  return { root, input, output, outputFolder: output, zip };
 }
 
 function normalizeExtension(value: string) {

@@ -53,6 +53,19 @@ describe('JobStatus', () => {
     expect(onStopJob).toHaveBeenCalledTimes(1);
   });
 
+  it('hides translated file list while job is running', () => {
+    render(
+      <JobStatus
+        job={createMockJob()}
+        files={[{ path: 'docs/readme.md', size: 10 }]}
+        errorMessage={null}
+      />,
+    );
+
+    expect(screen.getByText('翻譯中，完成後才會顯示翻譯結果檔案。')).toBeInTheDocument();
+    expect(screen.queryByText('docs/readme.md (10 bytes)')).not.toBeInTheDocument();
+  });
+
   it('shows error message even when no job exists yet', () => {
     render(<JobStatus job={null} files={[]} errorMessage="建立任務失敗" />);
 
