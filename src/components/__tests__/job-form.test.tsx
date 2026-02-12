@@ -222,6 +222,7 @@ describe('JobForm', () => {
 
     await waitFor(() => {
       expect(showDirectoryPickerMock).toHaveBeenCalledTimes(1);
+      expect(screen.getByLabelText('輸出目錄路徑')).toHaveValue('selected-output-folder');
     });
 
     fireEvent.click(screen.getByRole('button', { name: '建立翻譯任務' }));

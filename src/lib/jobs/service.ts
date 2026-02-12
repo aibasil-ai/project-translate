@@ -165,6 +165,14 @@ function clearAbortController(jobId: string) {
   jobAbortControllers.delete(jobId);
 }
 
+export async function cleanupGithubCloneArtifacts(job: Pick<JobRecord, 'sourceType' | 'inputRoot'>) {
+  if (job.sourceType !== 'github') {
+    return;
+  }
+
+  await fs.rm(job.inputRoot, { recursive: true, force: true });
+}
+
 function isJobAbortError(error: unknown, abortController: AbortController) {
   if (abortController.signal.aborted) {
     return true;
@@ -369,6 +377,11 @@ async function processJob(jobId: string, abortController: AbortController) {
       lastError: error instanceof Error ? error.message : 'Unknown error',
     });
   } finally {
+    try {
+      await cleanupGithubCloneArtifacts(job);
+    } catch {
+    }
+
     clearAbortController(jobId);
   }
 }

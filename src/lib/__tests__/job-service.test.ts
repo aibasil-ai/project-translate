@@ -1,9 +1,14 @@
+import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 
 import { describe, expect, it } from 'vitest';
 
-import { resolveModelForTranslator, validateOutputDirectoryPath } from '@/lib/jobs/service';
+import {
+  cleanupGithubCloneArtifacts,
+  resolveModelForTranslator,
+  validateOutputDirectoryPath,
+} from '@/lib/jobs/service';
 
 describe('validateOutputDirectoryPath', () => {
   it('accepts and normalizes output directory path', () => {
@@ -71,5 +76,45 @@ describe('resolveModelForTranslator', () => {
 
   it('falls back to provider default model when empty', () => {
     expect(resolveModelForTranslator('gemini', '')).toBe(process.env.GEMINI_MODEL || 'gemini-2.0-flash');
+  });
+});
+
+describe('cleanupGithubCloneArtifacts', () => {
+  it('removes cloned repository directory for github jobs', async () => {
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), 'cleanup-github-'));
+    const repoRoot = path.join(root, 'input', 'repo');
+
+    try {
+      await fs.mkdir(path.join(repoRoot, 'docs'), { recursive: true });
+      await fs.writeFile(path.join(repoRoot, 'docs/readme.md'), '# hello');
+
+      await cleanupGithubCloneArtifacts({
+        sourceType: 'github',
+        inputRoot: repoRoot,
+      });
+
+      await expect(fs.access(repoRoot)).rejects.toThrow();
+    } finally {
+      await fs.rm(root, { recursive: true, force: true });
+    }
+  });
+
+  it('keeps input directory for folder jobs', async () => {
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), 'cleanup-folder-'));
+    const inputRoot = path.join(root, 'input');
+
+    try {
+      await fs.mkdir(inputRoot, { recursive: true });
+      await fs.writeFile(path.join(inputRoot, 'note.md'), '# keep');
+
+      await cleanupGithubCloneArtifacts({
+        sourceType: 'folder',
+        inputRoot,
+      });
+
+      await expect(fs.access(inputRoot)).resolves.toBeUndefined();
+    } finally {
+      await fs.rm(root, { recursive: true, force: true });
+    }
   });
 });
