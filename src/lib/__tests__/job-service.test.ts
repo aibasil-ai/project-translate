@@ -3,7 +3,7 @@ import path from 'node:path';
 
 import { describe, expect, it } from 'vitest';
 
-import { validateOutputDirectoryPath } from '@/lib/jobs/service';
+import { resolveModelForTranslator, validateOutputDirectoryPath } from '@/lib/jobs/service';
 
 describe('validateOutputDirectoryPath', () => {
   it('accepts and normalizes output directory path', () => {
@@ -61,5 +61,15 @@ describe('validateOutputDirectoryPath', () => {
         process.env.VERCEL = originalVercel;
       }
     }
+  });
+});
+
+describe('resolveModelForTranslator', () => {
+  it('returns user-specified model when provided', () => {
+    expect(resolveModelForTranslator('openai', 'gpt-4o-mini')).toBe('gpt-4o-mini');
+  });
+
+  it('falls back to provider default model when empty', () => {
+    expect(resolveModelForTranslator('gemini', '')).toBe(process.env.GEMINI_MODEL || 'gemini-2.0-flash');
   });
 });

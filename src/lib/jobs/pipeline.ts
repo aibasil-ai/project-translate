@@ -33,6 +33,29 @@ export interface TranslationPipelineOptions {
   onProgress: (progress: PipelineProgress) => void | Promise<void>;
   sourceType?: 'folder' | 'github';
   targetLanguage?: string;
+  model?: string;
+  signal?: AbortSignal;
+}
+
+export class PipelineCancelledError extends Error {
+  constructor(message = 'Translation pipeline cancelled') {
+    super(message);
+    this.name = 'PipelineCancelledError';
+  }
+}
+
+function isAbortError(error: unknown) {
+  if (!(error instanceof Error)) {
+    return false;
+  }
+
+  return error.name === 'AbortError' || error.message.toLowerCase().includes('abort');
+}
+
+function throwIfCancelled(signal?: AbortSignal) {
+  if (signal?.aborted) {
+    throw new PipelineCancelledError('Translation was cancelled by user');
+  }
 }
 
 export async function runTranslationPipeline(options: TranslationPipelineOptions): Promise<PipelineResult> {
@@ -45,6 +68,8 @@ export async function runTranslationPipeline(options: TranslationPipelineOptions
     onProgress,
     sourceType = 'folder',
     targetLanguage = 'Traditional Chinese (zh-TW)',
+    model,
+    signal,
   } = options;
 
   await fs.mkdir(outputRoot, { recursive: true });
@@ -55,6 +80,8 @@ export async function runTranslationPipeline(options: TranslationPipelineOptions
   let failedFiles = 0;
 
   for (const relativePath of files) {
+    throwIfCancelled(signal);
+
     const sourcePath = resolveSafePath(inputRoot, relativePath);
     const targetPath = resolveSafePath(outputRoot, relativePath);
 
@@ -74,6 +101,8 @@ export async function runTranslationPipeline(options: TranslationPipelineOptions
           relativePath,
           sourceType,
           targetLanguage,
+          model,
+          signal,
         });
 
         await fs.writeFile(targetPath, translated, 'utf8');
@@ -81,6 +110,10 @@ export async function runTranslationPipeline(options: TranslationPipelineOptions
         await fs.copyFile(sourcePath, targetPath);
       }
     } catch (error) {
+      if (signal?.aborted || isAbortError(error)) {
+        throw new PipelineCancelledError('Translation was cancelled by user');
+      }
+
       failedFiles += 1;
       errors.push({
         relativePath,
@@ -90,6 +123,7 @@ export async function runTranslationPipeline(options: TranslationPipelineOptions
     }
 
     processedFiles += 1;
+    throwIfCancelled(signal);
 
     await onProgress({
       totalFiles: files.length,

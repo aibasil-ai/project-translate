@@ -11,9 +11,10 @@ export const openaiProvider: TranslatorProvider = {
       throw new Error('OPENAI_API_KEY is not configured');
     }
 
-    const model = process.env.OPENAI_MODEL ?? 'gpt-4.1-mini';
+    const model = context.model?.trim() || process.env.OPENAI_MODEL || 'gpt-4.1-mini';
     const response = await fetch(OPENAI_URL, {
       method: 'POST',
+      signal: context.signal,
       headers: {
         'Content-Type': 'application/json',
         Authorization: `Bearer ${apiKey}`,

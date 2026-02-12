@@ -5,7 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 
-import { runTranslationPipeline } from '@/lib/jobs/pipeline';
+import { PipelineCancelledError, runTranslationPipeline } from '@/lib/jobs/pipeline';
 
 const tempDirs: string[] = [];
 
@@ -83,5 +83,32 @@ describe('translation pipeline', () => {
     expect(ok).toBe('繁中:ok');
     expect(failed).toBe('bad');
     expect(result.errors[0]?.relativePath).toBe('docs/fail.md');
+  });
+
+  it('throws PipelineCancelledError when signal aborted', async () => {
+    const root = await createTempDir();
+    const inputRoot = path.join(root, 'input');
+    const outputRoot = path.join(root, 'output');
+
+    await fs.mkdir(path.join(inputRoot, 'docs'), { recursive: true });
+    await fs.writeFile(path.join(inputRoot, 'docs/a.md'), 'a');
+    await fs.writeFile(path.join(inputRoot, 'docs/b.md'), 'b');
+
+    const abortController = new AbortController();
+
+    await expect(
+      runTranslationPipeline({
+        inputRoot,
+        outputRoot,
+        allowedExtensions: ['.md'],
+        maxFileSizeBytes: 100_000,
+        signal: abortController.signal,
+        translate: async (text, context) => {
+          abortController.abort();
+          return `繁中:${text}:${context.model ?? 'no-model'}`;
+        },
+        onProgress: () => undefined,
+      }),
+    ).rejects.toBeInstanceOf(PipelineCancelledError);
   });
 });

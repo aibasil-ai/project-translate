@@ -1,6 +1,9 @@
 import { NextResponse } from 'next/server';
 
-import { getProviderStatusFromEnv } from '@/lib/translator/provider-status';
+import {
+  getProviderDefaultModelsFromEnv,
+  getProviderStatusFromEnv,
+} from '@/lib/translator/provider-status';
 import { updateRuntimeCredentials } from '@/lib/translator/runtime-credentials';
 
 export const runtime = 'nodejs';
@@ -8,6 +11,7 @@ export const runtime = 'nodejs';
 export async function GET() {
   return NextResponse.json({
     providerStatus: getProviderStatusFromEnv(),
+    defaultModels: getProviderDefaultModelsFromEnv(),
   });
 }
 
@@ -22,6 +26,7 @@ export async function POST(request: Request) {
 
     return NextResponse.json({
       providerStatus: getProviderStatusFromEnv(),
+      defaultModels: getProviderDefaultModelsFromEnv(),
     });
   } catch {
     return NextResponse.json({ error: '無法儲存金鑰設定' }, { status: 400 });

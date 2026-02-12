@@ -4,6 +4,7 @@ import {
   createFolderTranslationJob,
   createGithubTranslationJob,
   parseAllowedExtensions,
+  resolveModelForTranslator,
   toPublicJobView,
   UserInputError,
 } from '@/lib/jobs/service';
@@ -30,6 +31,7 @@ export async function POST(request: Request) {
       }
 
       const translator = asString(formData.get('translator'), 'openai');
+      const model = resolveModelForTranslator(translator, asString(formData.get('model')));
       const targetLanguage = asString(formData.get('targetLanguage'), 'Traditional Chinese (zh-TW)');
       const outputFolder = asString(formData.get('outputFolder'));
       const allowedExtensions = parseAllowedExtensions(asString(formData.get('allowedExtensions')));
@@ -45,6 +47,7 @@ export async function POST(request: Request) {
 
       const job = await createFolderTranslationJob({
         translator,
+        model,
         targetLanguage,
         outputFolder,
         allowedExtensions,
@@ -66,8 +69,11 @@ export async function POST(request: Request) {
       throw new UserInputError('JSON requests must use sourceType="github"');
     }
 
+    const translator = typeof payload.translator === 'string' ? payload.translator : 'openai';
+
     const job = await createGithubTranslationJob({
-      translator: typeof payload.translator === 'string' ? payload.translator : 'openai',
+      translator,
+      model: resolveModelForTranslator(translator, typeof payload.model === 'string' ? payload.model : ''),
       targetLanguage:
         typeof payload.targetLanguage === 'string'
           ? payload.targetLanguage

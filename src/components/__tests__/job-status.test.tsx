@@ -1,5 +1,5 @@
-import { render, screen } from '@testing-library/react';
-import { describe, expect, it } from 'vitest';
+import { fireEvent, render, screen } from '@testing-library/react';
+import { describe, expect, it, vi } from 'vitest';
 
 import { JobStatus } from '@/components/job-status';
 import type { JobPublicView } from '@/lib/jobs/types';
@@ -9,6 +9,7 @@ function createMockJob(): JobPublicView {
     id: 'job-1',
     sourceType: 'folder',
     translator: 'openai',
+    model: 'gpt-4.1-mini',
     targetLanguage: 'Traditional Chinese (zh-TW)',
     outputFolder: 'output',
     allowedExtensions: ['.md'],
@@ -31,6 +32,25 @@ describe('JobStatus', () => {
 
     expect(screen.getByText('40%')).toBeInTheDocument();
     expect(screen.getByRole('progressbar', { name: '翻譯進度' })).toBeInTheDocument();
+    expect(screen.getByText('gpt-4.1-mini')).toBeInTheDocument();
+  });
+
+  it('shows stop button and triggers callback when job is running', () => {
+    const onStopJob = vi.fn();
+
+    render(
+      <JobStatus
+        job={createMockJob()}
+        files={[]}
+        errorMessage={null}
+        canStopJob
+        isStoppingJob={false}
+        onStopJob={onStopJob}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: '停止翻譯' }));
+    expect(onStopJob).toHaveBeenCalledTimes(1);
   });
 
   it('shows error message even when no job exists yet', () => {

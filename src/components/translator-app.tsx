@@ -10,7 +10,11 @@ import {
 } from '@/components/job-form';
 import { JobStatus, type TreeFileItem } from '@/components/job-status';
 import type { JobPublicView } from '@/lib/jobs/types';
-import type { ProviderStatusMap } from '@/lib/translator/provider-status';
+import {
+  fallbackProviderDefaultModels,
+  type ProviderDefaultModelMap,
+  type ProviderStatusMap,
+} from '@/lib/translator/provider-status';
 import { partitionUploadFiles } from '@/lib/upload-filter';
 
 const defaultProviderStatus: ProviderStatusMap = {
@@ -68,9 +72,11 @@ function isPermissionActivationError(error: unknown) {
 
   const normalizedMessage = error.message.toLowerCase();
 
-  return normalizedMessage.includes('user activation is required')
+  return (
+    normalizedMessage.includes('user activation is required')
     || normalizedMessage.includes('request permissions')
-    || normalizedMessage.includes('permission');
+    || normalizedMessage.includes('permission')
+  );
 }
 
 async function ensureOutputDirectoryWritable(outputDirectoryHandle: OutputDirectoryHandle) {
@@ -89,9 +95,13 @@ export function TranslatorApp() {
   const [job, setJob] = useState<JobPublicView | null>(null);
   const [files, setFiles] = useState<TreeFileItem[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isStopping, setIsStopping] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [uploadNotice, setUploadNotice] = useState<string | null>(null);
   const [providerStatus, setProviderStatus] = useState<ProviderStatusMap>(defaultProviderStatus);
+  const [defaultModels, setDefaultModels] = useState<ProviderDefaultModelMap>(
+    fallbackProviderDefaultModels,
+  );
   const [isProviderStatusLoading, setIsProviderStatusLoading] = useState(true);
   const [pickedOutputDirectoryHandle, setPickedOutputDirectoryHandle] =
     useState<OutputDirectoryHandle | null>(null);
@@ -144,18 +154,18 @@ export function TranslatorApp() {
       const response = await fetch(`/api/jobs/${jobId}/file?path=${encodeURIComponent(translatedFile.path)}`);
 
       if (!response.ok) {
-        let errorMessage = '讀取翻譯檔案失敗';
+        let fetchErrorMessage = '讀取翻譯檔案失敗';
 
         try {
           const payload = await response.json();
           if (typeof payload?.error === 'string') {
-            errorMessage = payload.error;
+            fetchErrorMessage = payload.error;
           }
         } catch {
           // Ignore JSON parse errors and keep fallback message.
         }
 
-        throw new Error(`${translatedFile.path}: ${errorMessage}`);
+        throw new Error(`${translatedFile.path}: ${fetchErrorMessage}`);
       }
 
       const fileContent = await response.arrayBuffer();
@@ -187,9 +197,14 @@ export function TranslatorApp() {
       if (data?.providerStatus) {
         setProviderStatus(data.providerStatus as ProviderStatusMap);
       }
+
+      if (data?.defaultModels) {
+        setDefaultModels(data.defaultModels as ProviderDefaultModelMap);
+      }
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : '讀取翻譯引擎設定失敗');
       setProviderStatus(defaultProviderStatus);
+      setDefaultModels(fallbackProviderDefaultModels);
     } finally {
       setIsProviderStatusLoading(false);
     }
@@ -212,6 +227,10 @@ export function TranslatorApp() {
 
     if (data?.providerStatus) {
       setProviderStatus(data.providerStatus as ProviderStatusMap);
+    }
+
+    if (data?.defaultModels) {
+      setDefaultModels(data.defaultModels as ProviderDefaultModelMap);
     }
   }
 
@@ -242,6 +261,7 @@ export function TranslatorApp() {
         const formData = new FormData();
         formData.set('sourceType', 'folder');
         formData.set('translator', payload.translator);
+        formData.set('model', payload.model);
         formData.set('targetLanguage', payload.targetLanguage);
         formData.set('outputFolder', payload.outputFolder);
         formData.set('allowedExtensions', payload.allowedExtensions);
@@ -265,6 +285,7 @@ export function TranslatorApp() {
             sourceType: 'github',
             repoUrl: payload.repoUrl,
             translator: payload.translator,
+            model: payload.model,
             targetLanguage: payload.targetLanguage,
             outputFolder: payload.outputFolder,
             allowedExtensions: payload.allowedExtensions,
@@ -283,6 +304,38 @@ export function TranslatorApp() {
       setErrorMessage(error instanceof Error ? error.message : '提交任務失敗');
     } finally {
       setIsSubmitting(false);
+    }
+  }
+
+  async function handleStopJob() {
+    if (!activeJobId || (activeJobStatus !== 'queued' && activeJobStatus !== 'running')) {
+      return;
+    }
+
+    try {
+      setIsStopping(true);
+      setErrorMessage(null);
+
+      const response = await fetch(`/api/jobs/${activeJobId}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ action: 'cancel' }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(typeof data?.error === 'string' ? data.error : '停止翻譯失敗');
+      }
+
+      setJob(data.job as JobPublicView);
+      setUploadNotice('已停止本次翻譯任務。');
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : '停止翻譯失敗');
+    } finally {
+      setIsStopping(false);
     }
   }
 
@@ -370,9 +423,19 @@ export function TranslatorApp() {
           isSubmitting={isSubmitting}
           helperMessage={uploadNotice}
           providerStatus={providerStatus}
+          defaultModels={defaultModels}
           isProviderStatusLoading={isProviderStatusLoading}
         />
-        <JobStatus job={job} files={files} errorMessage={errorMessage} />
+        <JobStatus
+          job={job}
+          files={files}
+          errorMessage={errorMessage}
+          canStopJob={activeJobStatus === 'queued' || activeJobStatus === 'running'}
+          isStoppingJob={isStopping}
+          onStopJob={() => {
+            void handleStopJob();
+          }}
+        />
       </div>
     </main>
   );

@@ -1,7 +1,7 @@
 import type { PipelineError, PipelineProgress } from '@/lib/jobs/pipeline';
 import type { SourceType } from '@/lib/translator';
 
-export type JobStatus = 'queued' | 'running' | 'completed' | 'failed';
+export type JobStatus = 'queued' | 'running' | 'completed' | 'failed' | 'cancelled';
 
 export interface JobProgress {
   totalFiles: number;
@@ -15,6 +15,7 @@ export interface JobRecord {
   sourceType: SourceType;
   repoUrl?: string;
   translator: string;
+  model: string;
   targetLanguage: string;
   outputFolder: string;
   allowedExtensions: string[];
@@ -35,6 +36,7 @@ export interface CreateJobInput {
   sourceType: SourceType;
   repoUrl?: string;
   translator: string;
+  model: string;
   targetLanguage: string;
   outputFolder: string;
   allowedExtensions: string[];
@@ -49,6 +51,7 @@ export interface JobPublicView {
   sourceType: SourceType;
   repoUrl?: string;
   translator: string;
+  model: string;
   targetLanguage: string;
   outputFolder: string;
   allowedExtensions: string[];

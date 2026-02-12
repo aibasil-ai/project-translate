@@ -1,9 +1,11 @@
 'use client';
 
-import { FormEvent, useEffect, useMemo, useRef, useState } from 'react';
+import { ChangeEvent, FormEvent, MouseEvent, useEffect, useMemo, useRef, useState } from 'react';
 
 import {
+  fallbackProviderDefaultModels,
   missingProviderHint,
+  type ProviderDefaultModelMap,
   type ProviderStatusMap,
 } from '@/lib/translator/provider-status';
 
@@ -24,6 +26,8 @@ export type OutputPermissionState = 'granted' | 'denied' | 'prompt';
 
 export interface OutputDirectoryHandle {
   name: string;
+  path?: string;
+  fullPath?: string;
   getDirectoryHandle: (
     name: string,
     options?: {
@@ -47,6 +51,7 @@ type DirectoryPickerWindow = Window & {
 export interface JobFormPayload {
   sourceType: SourceType;
   translator: keyof ProviderStatusMap;
+  model: string;
   targetLanguage: string;
   outputFolder: string;
   outputDirectoryHandle?: OutputDirectoryHandle | null;
@@ -64,6 +69,7 @@ interface JobFormProps {
   isSubmitting: boolean;
   helperMessage?: string | null;
   providerStatus: ProviderStatusMap;
+  defaultModels?: ProviderDefaultModelMap;
   isProviderStatusLoading?: boolean;
   onSubmit: (payload: JobFormPayload) => void | Promise<void>;
   onSaveCredentials: (payload: CredentialPayload) => void | Promise<void>;
@@ -81,18 +87,37 @@ const targetLanguageOptions = [
   { label: '英語 (en-US)', value: 'English (en-US)' },
 ];
 
+function resolveDirectoryDisplayPath(directoryHandle: OutputDirectoryHandle) {
+  const fullPath = directoryHandle.fullPath?.trim();
+  if (fullPath) {
+    return { displayPath: fullPath, isFullPath: true };
+  }
+
+  const path = directoryHandle.path?.trim();
+  if (path) {
+    return { displayPath: path, isFullPath: true };
+  }
+
+  return { displayPath: directoryHandle.name, isFullPath: false };
+}
+
 export function JobForm({
   isSubmitting,
   helperMessage,
   providerStatus,
+  defaultModels = fallbackProviderDefaultModels,
   isProviderStatusLoading = false,
   onSubmit,
   onSaveCredentials,
 }: JobFormProps) {
   const [sourceType, setSourceType] = useState<SourceType>('folder');
   const [translator, setTranslator] = useState<keyof ProviderStatusMap>('openai');
+  const [model, setModel] = useState(defaultModels.openai);
+  const [isModelCustomized, setIsModelCustomized] = useState(false);
   const [targetLanguage, setTargetLanguage] = useState('Traditional Chinese (zh-TW)');
   const [outputFolder, setOutputFolder] = useState('');
+  const [outputDisplayPath, setOutputDisplayPath] = useState('');
+  const [isOutputPathLimited, setIsOutputPathLimited] = useState(false);
   const [outputDirectoryHandle, setOutputDirectoryHandle] = useState<OutputDirectoryHandle | null>(
     null,
   );
@@ -114,6 +139,17 @@ export function JobForm({
       folderInputRef.current.setAttribute('directory', '');
     }
   }, []);
+
+  useEffect(() => {
+    setModel(defaultModels[translator]);
+    setIsModelCustomized(false);
+  }, [translator]);
+
+  useEffect(() => {
+    if (!isModelCustomized) {
+      setModel(defaultModels[translator]);
+    }
+  }, [defaultModels, translator, isModelCustomized]);
 
   const isSelectedProviderReady = providerStatus[translator];
   const providerBlockingMessage = useMemo(() => {
@@ -166,13 +202,19 @@ export function JobForm({
 
         if (permissionState !== 'granted') {
           setOutputFolder('');
+          setOutputDisplayPath('');
+          setIsOutputPathLimited(false);
           setOutputDirectoryHandle(null);
           setValidationMessage('需要允許 output 資料夾寫入權限，請重新選擇並允許。');
           return;
         }
       }
 
+      const { displayPath, isFullPath } = resolveDirectoryDisplayPath(directoryHandle);
+
       setOutputFolder(directoryHandle.name);
+      setOutputDisplayPath(displayPath);
+      setIsOutputPathLimited(!isFullPath);
       setOutputDirectoryHandle(directoryHandle);
     } catch (error) {
       if (error instanceof DOMException && error.name === 'AbortError') {
@@ -182,6 +224,16 @@ export function JobForm({
     } finally {
       setIsPickingOutputFolder(false);
     }
+  }
+
+  function handleProjectFolderInputClick(event: MouseEvent<HTMLInputElement>) {
+    event.currentTarget.value = '';
+    setFiles([]);
+  }
+
+  function handleProjectFolderChange(event: ChangeEvent<HTMLInputElement>) {
+    const nextFiles = Array.from(event.target.files ?? []);
+    setFiles(nextFiles);
   }
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
@@ -208,9 +260,12 @@ export function JobForm({
       return;
     }
 
+    const selectedModel = model.trim() || defaultModels[translator];
+
     void onSubmit({
       sourceType,
       translator,
+      model: selectedModel,
       targetLanguage,
       outputFolder: outputFolder.trim(),
       outputDirectoryHandle,
@@ -296,6 +351,33 @@ export function JobForm({
         ) : null}
       </label>
 
+      <label className="field" htmlFor="model">
+        <span>翻譯模型</span>
+        <div className="inline-actions">
+          <input
+            id="model"
+            value={model}
+            onChange={(event) => {
+              setModel(event.target.value);
+              setIsModelCustomized(true);
+            }}
+            placeholder={defaultModels[translator]}
+            disabled={isSubmitting}
+          />
+          <button
+            type="button"
+            onClick={() => {
+              setModel(defaultModels[translator]);
+              setIsModelCustomized(false);
+            }}
+            disabled={isSubmitting}
+          >
+            套用預設
+          </button>
+        </div>
+        <small className="hint">目前預設模型：{defaultModels[translator]}</small>
+      </label>
+
       <label className="field" htmlFor="targetLanguage">
         <span>目標語言</span>
         <select
@@ -320,6 +402,8 @@ export function JobForm({
             value={outputFolder}
             onChange={(event) => {
               setOutputFolder(event.target.value);
+              setOutputDisplayPath(event.target.value);
+              setIsOutputPathLimited(false);
               setOutputDirectoryHandle(null);
             }}
             placeholder="例如：/home/username/project-translate-output"
@@ -335,6 +419,22 @@ export function JobForm({
             {isPickingOutputFolder ? '選擇中...' : '選擇本機資料夾'}
           </button>
         </div>
+      </label>
+
+      <label className="field" htmlFor="selectedOutputPath">
+        <span>已選擇本機位置</span>
+        <input
+          id="selectedOutputPath"
+          value={outputDisplayPath}
+          readOnly
+          placeholder="尚未選擇本機資料夾"
+          title={outputDisplayPath}
+        />
+        {isOutputPathLimited ? (
+          <small className="hint">
+            瀏覽器安全限制通常只會提供資料夾名稱；若要顯示完整路徑，請手動貼到上方輸入欄位。
+          </small>
+        ) : null}
       </label>
 
       <label className="field" htmlFor="allowedExtensions">
@@ -366,8 +466,8 @@ export function JobForm({
             id="projectFolder"
             ref={folderInputRef}
             type="file"
-            multiple
-            onChange={(event) => setFiles(Array.from(event.target.files ?? []))}
+            onClick={handleProjectFolderInputClick}
+            onChange={handleProjectFolderChange}
             disabled={isSubmitting}
           />
           <small>{files.length > 0 ? `已選取 ${files.length} 個檔案` : '尚未選取'}</small>

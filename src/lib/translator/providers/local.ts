@@ -3,6 +3,7 @@ import type { TranslatorProvider } from '@/lib/translator/types';
 export const localProvider: TranslatorProvider = {
   async translate(text, context) {
     const endpoint = process.env.LOCAL_TRANSLATOR_URL;
+    const model = context.model?.trim() || process.env.LOCAL_TRANSLATOR_MODEL || 'local-default';
 
     if (!endpoint) {
       return `[${context.targetLanguage}] ${text}`;
@@ -10,12 +11,14 @@ export const localProvider: TranslatorProvider = {
 
     const response = await fetch(endpoint, {
       method: 'POST',
+      signal: context.signal,
       headers: {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
         text,
         targetLanguage: context.targetLanguage,
+        model,
       }),
     });
 

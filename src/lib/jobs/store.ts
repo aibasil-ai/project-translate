@@ -23,6 +23,7 @@ export function createInMemoryJobStore(): JobStore {
         sourceType: input.sourceType,
         repoUrl: input.repoUrl,
         translator: input.translator,
+        model: input.model,
         targetLanguage: input.targetLanguage,
         outputFolder: input.outputFolder,
         allowedExtensions: input.allowedExtensions,

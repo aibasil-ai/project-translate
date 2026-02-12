@@ -4,6 +4,8 @@ export interface TranslateContext {
   relativePath: string;
   sourceType: SourceType;
   targetLanguage: string;
+  model?: string;
+  signal?: AbortSignal;
 }
 
 export interface TranslatorProvider {

@@ -9,6 +9,9 @@ interface JobStatusProps {
   job: JobPublicView | null;
   files: TreeFileItem[];
   errorMessage: string | null;
+  canStopJob?: boolean;
+  isStoppingJob?: boolean;
+  onStopJob?: () => void;
 }
 
 const statusLabelMap: Record<string, string> = {
@@ -16,6 +19,7 @@ const statusLabelMap: Record<string, string> = {
   running: '翻譯中',
   completed: '完成',
   failed: '失敗',
+  cancelled: '已停止',
 };
 
 function toProgressPercent(job: JobPublicView) {
@@ -26,7 +30,14 @@ function toProgressPercent(job: JobPublicView) {
   return Math.round((job.progress.processedFiles / job.progress.totalFiles) * 100);
 }
 
-export function JobStatus({ job, files, errorMessage }: JobStatusProps) {
+export function JobStatus({
+  job,
+  files,
+  errorMessage,
+  canStopJob = false,
+  isStoppingJob = false,
+  onStopJob,
+}: JobStatusProps) {
   if (!job) {
     return (
       <section className="panel">
@@ -50,6 +61,15 @@ export function JobStatus({ job, files, errorMessage }: JobStatusProps) {
         <strong>狀態：</strong>
         {statusLabelMap[job.status] ?? job.status}
       </p>
+      <p>
+        <strong>翻譯模型：</strong>
+        {job.model}
+      </p>
+      {canStopJob ? (
+        <button type="button" onClick={onStopJob} disabled={isStoppingJob}>
+          {isStoppingJob ? '停止中...' : '停止翻譯'}
+        </button>
+      ) : null}
       <p>
         <strong>輸出資料夾：</strong>
         {job.outputFolder}

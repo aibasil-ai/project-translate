@@ -6,14 +6,14 @@ import path from 'node:path';
 import { promisify } from 'node:util';
 
 import { listProjectFiles } from '@/lib/file-scan';
-import { runTranslationPipeline } from '@/lib/jobs/pipeline';
+import { PipelineCancelledError, runTranslationPipeline } from '@/lib/jobs/pipeline';
 import { jobStore } from '@/lib/jobs/store';
 import type { JobPublicView, JobRecord } from '@/lib/jobs/types';
 import { progressFromPipeline } from '@/lib/jobs/types';
 import { createZipFromDirectory } from '@/lib/jobs/zip';
 import { normalizeRelativePath, resolveSafePath } from '@/lib/path-safety';
 import { getTranslatorProvider } from '@/lib/translator';
-import { getProviderStatusFromEnv } from '@/lib/translator/provider-status';
+import { getDefaultModelForProvider, getProviderStatusFromEnv } from '@/lib/translator/provider-status';
 import { shouldIgnoreUploadPath } from '@/lib/upload-filter';
 
 const execFile = promisify(execFileCallback);
@@ -38,6 +38,28 @@ export function assertTranslatorConfiguration(translator: string) {
   if (translator === 'gemini' && !providerStatus.gemini) {
     throw new UserInputError('GEMINI_API_KEY is not configured. Please set it in .env.local or enter key in UI');
   }
+}
+
+const supportedTranslators = ['openai', 'gemini', 'local'] as const;
+
+type SupportedTranslator = (typeof supportedTranslators)[number];
+
+function isSupportedTranslator(value: string): value is SupportedTranslator {
+  return (supportedTranslators as readonly string[]).includes(value);
+}
+
+export function resolveModelForTranslator(translator: string, rawModel: string | undefined | null) {
+  const normalizedModel = typeof rawModel === 'string' ? rawModel.trim() : '';
+
+  if (normalizedModel.length > 0) {
+    return normalizedModel;
+  }
+
+  if (isSupportedTranslator(translator)) {
+    return getDefaultModelForProvider(translator);
+  }
+
+  return getDefaultModelForProvider('openai');
 }
 
 function expandHomeDirectoryPath(rawPath: string) {
@@ -105,6 +127,7 @@ interface WorkspacePaths {
 
 interface FolderJobInput {
   translator: string;
+  model: string;
   targetLanguage: string;
   outputFolder: string;
   allowedExtensions: string[];
@@ -114,6 +137,7 @@ interface FolderJobInput {
 
 interface GithubJobInput {
   translator: string;
+  model: string;
   targetLanguage: string;
   outputFolder: string;
   allowedExtensions: string[];
@@ -122,6 +146,37 @@ interface GithubJobInput {
 
 function getJobsBaseDirectory() {
   return process.env.JOBS_BASE_DIR ?? path.join(os.tmpdir(), 'project-translate-jobs');
+}
+
+const jobAbortControllers = new Map<string, AbortController>();
+
+function getOrCreateAbortController(jobId: string) {
+  let abortController = jobAbortControllers.get(jobId);
+
+  if (!abortController) {
+    abortController = new AbortController();
+    jobAbortControllers.set(jobId, abortController);
+  }
+
+  return abortController;
+}
+
+function clearAbortController(jobId: string) {
+  jobAbortControllers.delete(jobId);
+}
+
+function isJobAbortError(error: unknown, abortController: AbortController) {
+  if (abortController.signal.aborted) {
+    return true;
+  }
+
+  if (!(error instanceof Error)) {
+    return false;
+  }
+
+  const normalizedMessage = error.message.toLowerCase();
+
+  return error.name === 'AbortError' || normalizedMessage.includes('abort') || error instanceof PipelineCancelledError;
 }
 
 async function prepareWorkspace(jobId: string, outputFolder: string): Promise<WorkspacePaths> {
@@ -239,17 +294,28 @@ async function cloneGithubRepoToInput(repoUrl: string, inputRoot: string) {
 }
 
 function runJobInBackground(jobId: string) {
-  void processJob(jobId);
+  const abortController = getOrCreateAbortController(jobId);
+  void processJob(jobId, abortController);
 }
 
-async function processJob(jobId: string) {
+async function processJob(jobId: string, abortController: AbortController) {
   const job = jobStore.get(jobId);
 
   if (!job) {
+    clearAbortController(jobId);
     return;
   }
 
-  jobStore.update(jobId, { status: 'running' });
+  if (abortController.signal.aborted || job.status === 'cancelled') {
+    jobStore.update(jobId, {
+      status: 'cancelled',
+      lastError: '使用者已停止翻譯',
+    });
+    clearAbortController(jobId);
+    return;
+  }
+
+  jobStore.update(jobId, { status: 'running', lastError: undefined });
 
   try {
     const translator = getTranslatorProvider(job.translator);
@@ -260,6 +326,8 @@ async function processJob(jobId: string) {
       maxFileSizeBytes: MAX_TRANSLATE_FILE_BYTES,
       sourceType: job.sourceType,
       targetLanguage: job.targetLanguage,
+      model: job.model,
+      signal: abortController.signal,
       translate: (text, context) => translator.translate(text, context),
       onProgress: (progress) => {
         jobStore.update(jobId, {
@@ -267,6 +335,14 @@ async function processJob(jobId: string) {
         });
       },
     });
+
+    if (abortController.signal.aborted) {
+      jobStore.update(jobId, {
+        status: 'cancelled',
+        lastError: '使用者已停止翻譯',
+      });
+      return;
+    }
 
     await createZipFromDirectory(job.outputRoot, job.zipPath);
 
@@ -280,10 +356,20 @@ async function processJob(jobId: string) {
       },
     });
   } catch (error) {
+    if (isJobAbortError(error, abortController)) {
+      jobStore.update(jobId, {
+        status: 'cancelled',
+        lastError: '使用者已停止翻譯',
+      });
+      return;
+    }
+
     jobStore.update(jobId, {
       status: 'failed',
       lastError: error instanceof Error ? error.message : 'Unknown error',
     });
+  } finally {
+    clearAbortController(jobId);
   }
 }
 
@@ -291,6 +377,7 @@ function createJobBaseRecord({
   jobId,
   workspace,
   translator,
+  model,
   targetLanguage,
   allowedExtensions,
   sourceType,
@@ -300,6 +387,7 @@ function createJobBaseRecord({
   jobId: string;
   workspace: WorkspacePaths;
   translator: string;
+  model: string;
   targetLanguage: string;
   allowedExtensions: string[];
   sourceType: 'folder' | 'github';
@@ -311,6 +399,7 @@ function createJobBaseRecord({
     sourceType,
     repoUrl,
     translator,
+    model,
     targetLanguage,
     outputFolder: workspace.outputFolder,
     allowedExtensions,
@@ -323,6 +412,7 @@ function createJobBaseRecord({
 
 export async function createFolderTranslationJob(input: FolderJobInput) {
   assertTranslatorConfiguration(input.translator);
+  const model = resolveModelForTranslator(input.translator, input.model);
 
   const jobId = crypto.randomUUID();
   const workspace = await prepareWorkspace(jobId, input.outputFolder);
@@ -333,6 +423,7 @@ export async function createFolderTranslationJob(input: FolderJobInput) {
     jobId,
     workspace,
     translator: input.translator,
+    model,
     targetLanguage: input.targetLanguage,
     allowedExtensions: input.allowedExtensions,
     sourceType: 'folder',
@@ -344,6 +435,7 @@ export async function createFolderTranslationJob(input: FolderJobInput) {
 
 export async function createGithubTranslationJob(input: GithubJobInput) {
   assertTranslatorConfiguration(input.translator);
+  const model = resolveModelForTranslator(input.translator, input.model);
 
   const normalizedRepoUrl = validatePublicGithubUrl(input.repoUrl);
   const jobId = crypto.randomUUID();
@@ -355,6 +447,7 @@ export async function createGithubTranslationJob(input: GithubJobInput) {
     jobId,
     workspace,
     translator: input.translator,
+    model,
     targetLanguage: input.targetLanguage,
     allowedExtensions: input.allowedExtensions,
     sourceType: 'github',
@@ -374,12 +467,29 @@ export function getJobOrThrow(id: string) {
   return job;
 }
 
+export function cancelJobOrThrow(id: string) {
+  const job = getJobOrThrow(id);
+
+  if (job.status === 'completed' || job.status === 'failed' || job.status === 'cancelled') {
+    return job;
+  }
+
+  const abortController = getOrCreateAbortController(id);
+  abortController.abort();
+
+  return jobStore.update(id, {
+    status: 'cancelled',
+    lastError: '使用者已停止翻譯',
+  });
+}
+
 export function toPublicJobView(job: JobRecord, baseUrl?: string): JobPublicView {
   const publicJob: JobPublicView = {
     id: job.id,
     sourceType: job.sourceType,
     repoUrl: job.repoUrl,
     translator: job.translator,
+    model: job.model,
     targetLanguage: job.targetLanguage,
     outputFolder: job.outputFolder,
     allowedExtensions: job.allowedExtensions,

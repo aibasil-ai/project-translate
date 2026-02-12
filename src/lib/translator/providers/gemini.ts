@@ -9,11 +9,12 @@ export const geminiProvider: TranslatorProvider = {
       throw new Error('GEMINI_API_KEY is not configured');
     }
 
-    const model = process.env.GEMINI_MODEL ?? 'gemini-2.0-flash';
+    const model = context.model?.trim() || process.env.GEMINI_MODEL || 'gemini-2.0-flash';
     const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
 
     const response = await fetch(endpoint, {
       method: 'POST',
+      signal: context.signal,
       headers: {
         'Content-Type': 'application/json',
       },

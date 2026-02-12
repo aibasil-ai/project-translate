@@ -9,6 +9,7 @@ describe('job store', () => {
     const job = store.create({
       sourceType: 'folder',
       translator: 'local',
+      model: 'local-default',
       targetLanguage: 'Traditional Chinese (zh-TW)',
       outputFolder: 'output',
       allowedExtensions: ['.md'],
