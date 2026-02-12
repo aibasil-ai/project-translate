@@ -179,9 +179,9 @@ export function JobForm({
         openaiApiKey,
         geminiApiKey,
       });
-      setCredentialMessage('金鑰已儲存，已更新引擎狀態。');
+      setCredentialMessage('金鑰已儲存，已更新引擎可用狀態。');
     } catch (error) {
-      setCredentialMessage(error instanceof Error ? error.message : '儲存金鑰失敗');
+      setCredentialMessage(error instanceof Error ? error.message : '儲存 API 金鑰失敗');
     } finally {
       setIsSavingCredentials(false);
     }
@@ -192,7 +192,7 @@ export function JobForm({
 
     const directoryPickerWindow = window as DirectoryPickerWindow;
     if (!directoryPickerWindow.showDirectoryPicker) {
-      setValidationMessage('目前瀏覽器不支援資料夾選擇，請手動輸入路徑');
+      setValidationMessage('目前瀏覽器不支援目錄挑選，請手動輸入輸出目錄路徑。');
       return;
     }
 
@@ -208,7 +208,7 @@ export function JobForm({
           setOutputDisplayPath('');
           setIsOutputPathLimited(false);
           setOutputDirectoryHandle(null);
-          setValidationMessage('需要允許 output 資料夾寫入權限，請重新選擇並允許。');
+          setValidationMessage('需要授權輸出目錄寫入權限，請重新選擇並允許。');
           return;
         }
       }
@@ -223,7 +223,7 @@ export function JobForm({
       if (error instanceof DOMException && error.name === 'AbortError') {
         return;
       }
-      setValidationMessage(error instanceof Error ? error.message : '選擇 output 資料夾失敗');
+      setValidationMessage(error instanceof Error ? error.message : '選擇輸出目錄失敗');
     } finally {
       setIsPickingOutputFolder(false);
     }
@@ -254,17 +254,17 @@ export function JobForm({
     }
 
     if (!outputFolder.trim()) {
-      setValidationMessage('請輸入 output 輸出資料夾位置');
+      setValidationMessage('請輸入輸出目錄路徑');
       return;
     }
 
     if (sourceType === 'github' && !repoUrl.trim()) {
-      setValidationMessage('請輸入 GitHub Repo URL');
+      setValidationMessage('請輸入 GitHub 倉庫網址');
       return;
     }
 
     if (sourceType === 'folder' && files.length === 0) {
-      setValidationMessage('請先選取專案資料夾');
+      setValidationMessage('請先選擇專案資料夾');
       return;
     }
 
@@ -288,7 +288,7 @@ export function JobForm({
       <h2>建立翻譯任務</h2>
 
       <div className="provider-status" aria-live="polite">
-        <strong>金鑰設定</strong>
+        <strong>API 金鑰設定</strong>
         <label className="field" htmlFor="openaiApiKey">
           <span>OpenAI API Key</span>
           <input
@@ -318,14 +318,14 @@ export function JobForm({
           }}
           disabled={isSubmitting || isSavingCredentials}
         >
-          {isSavingCredentials ? '儲存中...' : '儲存金鑰'}
+          {isSavingCredentials ? '儲存中...' : '儲存 API 金鑰'}
         </button>
 
-        <strong>引擎狀態</strong>
+        <strong>引擎可用狀態</strong>
         <ul className="files">
-          <li>OpenAI：{providerStatus.openai ? '已設定' : '未設定'}</li>
-          <li>Gemini：{providerStatus.gemini ? '已設定' : '未設定'}</li>
-          <li>Local：{providerStatus.local ? '可用' : '不可用'}</li>
+          <li>OpenAI：{providerStatus.openai ? '已就緒' : '未就緒'}</li>
+          <li>Gemini：{providerStatus.gemini ? '已就緒' : '未就緒'}</li>
+          <li>Local：{providerStatus.local ? '可使用' : '不可使用'}</li>
         </ul>
       </div>
 
@@ -338,7 +338,7 @@ export function JobForm({
           disabled={isSubmitting}
         >
           <option value="folder">本機專案資料夾</option>
-          <option value="github">GitHub Repo URL</option>
+          <option value="github">GitHub 倉庫網址</option>
         </select>
       </label>
 
@@ -355,7 +355,7 @@ export function JobForm({
           <option value="local">Local Adapter</option>
         </select>
         {!isProviderStatusLoading && !isSelectedProviderReady ? (
-          <small className="error">{providerLabelMap[translator]} 尚未設定金鑰</small>
+          <small className="error">{providerLabelMap[translator]} 尚未完成金鑰設定</small>
         ) : null}
       </label>
 
@@ -380,10 +380,10 @@ export function JobForm({
             }}
             disabled={isSubmitting}
           >
-            套用預設
+            使用預設值
           </button>
         </div>
-        <small className="hint">目前預設模型：{defaultModels[translator]}</small>
+        <small className="hint">系統預設模型：{defaultModels[translator]}</small>
       </label>
 
       <label className="field" htmlFor="targetLanguage">
@@ -403,7 +403,7 @@ export function JobForm({
       </label>
 
       <label className="field" htmlFor="outputFolder">
-        <span>output 輸出資料夾位置</span>
+        <span>輸出目錄路徑</span>
         <div className="inline-actions">
           <input
             id="outputFolder"
@@ -424,29 +424,29 @@ export function JobForm({
             }}
             disabled={isSubmitting || isPickingOutputFolder}
           >
-            {isPickingOutputFolder ? '選擇中...' : '選擇本機資料夾'}
+            {isPickingOutputFolder ? '選擇中...' : '選擇輸出目錄'}
           </button>
         </div>
       </label>
 
       <label className="field" htmlFor="selectedOutputPath">
-        <span>已選擇本機位置</span>
+        <span>已選擇輸出位置</span>
         <input
           id="selectedOutputPath"
           value={outputDisplayPath}
           readOnly
-          placeholder="尚未選擇本機資料夾"
+          placeholder="尚未選擇輸出目錄"
           title={outputDisplayPath}
         />
         {isOutputPathLimited ? (
           <small className="hint">
-            瀏覽器安全限制通常只會提供資料夾名稱；若要顯示完整路徑，請手動貼到上方輸入欄位。
+            瀏覽器安全限制通常只會提供目錄名稱；如需完整路徑，請手動貼到上方欄位。
           </small>
         ) : null}
       </label>
 
       <label className="field" htmlFor="allowedExtensions">
-        <span>翻譯副檔名（逗號分隔）</span>
+        <span>可翻譯副檔名（逗號分隔）</span>
         <input
           id="allowedExtensions"
           value={allowedExtensions}
@@ -458,7 +458,7 @@ export function JobForm({
 
       {sourceType === 'github' ? (
         <label key="github-source" className="field" htmlFor="repoUrl">
-          <span>GitHub Repo URL</span>
+          <span>GitHub 倉庫網址</span>
           <input
             id="repoUrl"
             value={repoUrl}
@@ -469,7 +469,7 @@ export function JobForm({
         </label>
       ) : (
         <label key="folder-source" className="field" htmlFor="projectFolder">
-          <span>選取專案資料夾</span>
+          <span>選擇專案資料夾</span>
           <input
             id="projectFolder"
             ref={folderInputRef}
@@ -478,7 +478,7 @@ export function JobForm({
             onChange={handleProjectFolderChange}
             disabled={isSubmitting}
           />
-          <small>{files.length > 0 ? `已選取 ${files.length} 個檔案` : '尚未選取'}</small>
+          <small>{files.length > 0 ? `已選取 ${files.length} 個檔案` : '尚未選擇檔案'}</small>
         </label>
       )}
 
@@ -489,12 +489,12 @@ export function JobForm({
 
       <button type="submit" disabled={submitDisabled}>
         {isSubmitting
-          ? '處理中...'
+          ? '任務建立中...'
           : isJobActive
-            ? '翻譯中...'
+            ? '翻譯進行中...'
             : isProviderStatusLoading
-              ? '檢查設定中...'
-              : '開始翻譯'}
+              ? '檢查引擎設定中...'
+              : '建立翻譯任務'}
       </button>
     </form>
   );

@@ -33,6 +33,36 @@ describe('JobStatus', () => {
     expect(screen.getByText('40%')).toBeInTheDocument();
     expect(screen.getByRole('progressbar', { name: '翻譯進度' })).toBeInTheDocument();
     expect(screen.getByText('gpt-4.1-mini')).toBeInTheDocument();
+    expect(screen.getByText('翻譯中')).toHaveClass('status-badge', 'status-running');
+  });
+
+  it('renders completed state with success badge style', () => {
+    const completedJob: JobPublicView = {
+      ...createMockJob(),
+      status: 'completed',
+      progress: {
+        totalFiles: 3,
+        processedFiles: 3,
+        failedFiles: 0,
+        currentFile: null,
+      },
+    };
+
+    render(<JobStatus job={completedJob} files={[]} errorMessage={null} />);
+
+    expect(screen.getByText('完成')).toHaveClass('status-badge', 'status-completed');
+  });
+
+  it('renders failed state with error badge style', () => {
+    const failedJob: JobPublicView = {
+      ...createMockJob(),
+      status: 'failed',
+      lastError: '翻譯程序崩潰',
+    };
+
+    render(<JobStatus job={failedJob} files={[]} errorMessage={null} />);
+
+    expect(screen.getByText('失敗')).toHaveClass('status-badge', 'status-failed');
   });
 
   it('shows stop button and triggers callback when job is running', () => {
@@ -49,7 +79,7 @@ describe('JobStatus', () => {
       />,
     );
 
-    fireEvent.click(screen.getByRole('button', { name: '停止翻譯' }));
+    fireEvent.click(screen.getByRole('button', { name: '停止任務' }));
     expect(onStopJob).toHaveBeenCalledTimes(1);
   });
 
@@ -62,14 +92,14 @@ describe('JobStatus', () => {
       />,
     );
 
-    expect(screen.getByText('翻譯中，完成後才會顯示翻譯結果檔案。')).toBeInTheDocument();
-    expect(screen.queryByText('docs/readme.md (10 bytes)')).not.toBeInTheDocument();
+    expect(screen.getByText('翻譯進行中，完成後將顯示輸出檔案清單。')).toBeInTheDocument();
+    expect(screen.queryByText('docs/readme.md (10 位元組)')).not.toBeInTheDocument();
   });
 
   it('shows error message even when no job exists yet', () => {
     render(<JobStatus job={null} files={[]} errorMessage="建立任務失敗" />);
 
-    expect(screen.getByText('尚未建立任務。')).toBeInTheDocument();
+    expect(screen.getByText('目前尚未建立翻譯任務。')).toBeInTheDocument();
     expect(screen.getByText('建立任務失敗')).toBeInTheDocument();
   });
 });

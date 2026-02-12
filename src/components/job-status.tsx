@@ -22,6 +22,14 @@ const statusLabelMap: Record<string, string> = {
   cancelled: '已停止',
 };
 
+const statusBadgeMap: Record<string, string> = {
+  queued: 'status-queued',
+  running: 'status-running',
+  completed: 'status-completed',
+  failed: 'status-failed',
+  cancelled: 'status-cancelled',
+};
+
 function toProgressPercent(job: JobPublicView) {
   if (job.progress.totalFiles <= 0) {
     return job.status === 'completed' ? 100 : 0;
@@ -41,8 +49,8 @@ export function JobStatus({
   if (!job) {
     return (
       <section className="panel">
-        <h2>任務狀態</h2>
-        <p>尚未建立任務。</p>
+        <h2>任務執行狀態</h2>
+        <p>目前尚未建立翻譯任務。</p>
         {errorMessage ? <p className="error">{errorMessage}</p> : null}
       </section>
     );
@@ -50,29 +58,31 @@ export function JobStatus({
 
   const progressPercent = toProgressPercent(job);
   const showTranslatedFiles = job.status === 'completed' && files.length > 0;
+  const statusLabel = statusLabelMap[job.status] ?? job.status;
+  const statusBadgeClassName = statusBadgeMap[job.status] ?? 'status-queued';
 
   return (
     <section className="panel">
-      <h2>任務狀態</h2>
+      <h2>任務執行狀態</h2>
       <p>
-        <strong>Job ID：</strong>
+        <strong>任務 ID：</strong>
         {job.id}
       </p>
       <p>
-        <strong>狀態：</strong>
-        {statusLabelMap[job.status] ?? job.status}
+        <strong>任務狀態：</strong>
+        <span className={`status-badge ${statusBadgeClassName}`}>{statusLabel}</span>
       </p>
       <p>
-        <strong>翻譯模型：</strong>
+        <strong>使用模型：</strong>
         {job.model}
       </p>
       {canStopJob ? (
         <button type="button" onClick={onStopJob} disabled={isStoppingJob}>
-          {isStoppingJob ? '停止中...' : '停止翻譯'}
+          {isStoppingJob ? '停止中...' : '停止任務'}
         </button>
       ) : null}
       <p>
-        <strong>輸出資料夾：</strong>
+        <strong>輸出目錄：</strong>
         {job.outputFolder}
       </p>
 
@@ -94,7 +104,7 @@ export function JobStatus({
 
       {job.progress.currentFile ? (
         <p>
-          <strong>目前檔案：</strong>
+          <strong>目前處理檔案：</strong>
           {job.progress.currentFile}
         </p>
       ) : null}
@@ -104,13 +114,13 @@ export function JobStatus({
 
       {job.status === 'completed' && job.downloadUrl ? (
         <p>
-          <a href={job.downloadUrl}>下載翻譯 ZIP</a>
+          <a href={job.downloadUrl}>下載翻譯結果 ZIP</a>
         </p>
       ) : null}
 
       {job.errors.length > 0 ? (
         <div>
-          <h3>翻譯錯誤</h3>
+          <h3>錯誤明細</h3>
           <ul className="files">
             {job.errors.map((error) => (
               <li key={`${error.relativePath}:${error.message}`}>
@@ -122,16 +132,16 @@ export function JobStatus({
       ) : null}
 
       {job.status === 'queued' || job.status === 'running' ? (
-        <p className="hint">翻譯中，完成後才會顯示翻譯結果檔案。</p>
+        <p className="hint">翻譯進行中，完成後將顯示輸出檔案清單。</p>
       ) : null}
 
       {showTranslatedFiles ? (
         <div>
-          <h3>翻譯結果檔案</h3>
+          <h3>輸出檔案清單</h3>
           <ul className="files">
             {files.map((file) => (
               <li key={file.path}>
-                {file.path} ({file.size} bytes)
+                {file.path} ({file.size} 位元組)
               </li>
             ))}
           </ul>

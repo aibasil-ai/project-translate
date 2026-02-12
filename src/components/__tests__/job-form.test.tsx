@@ -37,14 +37,14 @@ describe('JobForm', () => {
       target: { value: 'github' },
     });
 
-    fireEvent.change(screen.getByLabelText('GitHub Repo URL'), {
+    fireEvent.change(screen.getByLabelText('GitHub 倉庫網址'), {
       target: { value: 'https://github.com/vercel/next.js' },
     });
 
-    fireEvent.click(screen.getByRole('button', { name: '開始翻譯' }));
+    fireEvent.click(screen.getByRole('button', { name: '建立翻譯任務' }));
 
     expect(onSubmit).not.toHaveBeenCalled();
-    expect(screen.getByText('請輸入 output 輸出資料夾位置')).toBeInTheDocument();
+    expect(screen.getByText('請輸入輸出目錄路徑')).toBeInTheDocument();
   });
 
   it('shows default model and allows overriding model', () => {
@@ -60,17 +60,17 @@ describe('JobForm', () => {
       />,
     );
 
-    expect(screen.getByText('目前預設模型：gpt-4.1-mini')).toBeInTheDocument();
+    expect(screen.getByText('系統預設模型：gpt-4.1-mini')).toBeInTheDocument();
 
     fireEvent.change(screen.getByLabelText('資料來源'), {
       target: { value: 'github' },
     });
 
-    fireEvent.change(screen.getByLabelText('GitHub Repo URL'), {
+    fireEvent.change(screen.getByLabelText('GitHub 倉庫網址'), {
       target: { value: 'https://github.com/vercel/next.js' },
     });
 
-    fireEvent.change(screen.getByLabelText('output 輸出資料夾位置'), {
+    fireEvent.change(screen.getByLabelText('輸出目錄路徑'), {
       target: { value: '/tmp/project-translate-output' },
     });
 
@@ -78,7 +78,7 @@ describe('JobForm', () => {
       target: { value: 'gpt-4o-mini' },
     });
 
-    fireEvent.click(screen.getByRole('button', { name: '開始翻譯' }));
+    fireEvent.click(screen.getByRole('button', { name: '建立翻譯任務' }));
 
     expect(onSubmit).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -101,12 +101,12 @@ describe('JobForm', () => {
       />,
     );
 
-    fireEvent.change(screen.getByLabelText('output 輸出資料夾位置'), {
+    fireEvent.change(screen.getByLabelText('輸出目錄路徑'), {
       target: { value: '/tmp/project-translate-output' },
     });
 
     const projectFolderInput = screen
-      .getByText('選取專案資料夾')
+      .getByText('選擇專案資料夾')
       .closest('label')
       ?.querySelector('input');
 
@@ -126,7 +126,7 @@ describe('JobForm', () => {
     expect(screen.getByText('已選取 2 個檔案')).toBeInTheDocument();
 
     fireEvent.click(projectFolderPicker);
-    expect(screen.getByText('尚未選取')).toBeInTheDocument();
+    expect(screen.getByText('尚未選擇檔案')).toBeInTheDocument();
 
     fireEvent.change(projectFolderPicker, {
       target: {
@@ -136,7 +136,7 @@ describe('JobForm', () => {
 
     expect(screen.getByText('已選取 1 個檔案')).toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole('button', { name: '開始翻譯' }));
+    fireEvent.click(screen.getByRole('button', { name: '建立翻譯任務' }));
 
     expect(onSubmit).toHaveBeenCalledTimes(1);
     const payload = onSubmit.mock.calls[0][0] as { files?: Array<File & { webkitRelativePath?: string }> };
@@ -170,15 +170,15 @@ describe('JobForm', () => {
       />,
     );
 
-    fireEvent.click(screen.getByRole('button', { name: '選擇本機資料夾' }));
+    fireEvent.click(screen.getByRole('button', { name: '選擇輸出目錄' }));
 
     await waitFor(() => {
       expect(showDirectoryPickerMock).toHaveBeenCalledWith({ mode: 'readwrite' });
       expect(requestPermissionMock).toHaveBeenCalledWith({ mode: 'readwrite' });
-      expect(screen.getByLabelText('output 輸出資料夾位置')).toHaveValue(
+      expect(screen.getByLabelText('輸出目錄路徑')).toHaveValue(
         'project-translate-output',
       );
-      expect(screen.getByLabelText('已選擇本機位置')).toHaveValue(
+      expect(screen.getByLabelText('已選擇輸出位置')).toHaveValue(
         'C:\\Users\\joshlin\\Desktop\\test',
       );
     });
@@ -214,17 +214,17 @@ describe('JobForm', () => {
       target: { value: 'github' },
     });
 
-    fireEvent.change(screen.getByLabelText('GitHub Repo URL'), {
+    fireEvent.change(screen.getByLabelText('GitHub 倉庫網址'), {
       target: { value: 'https://github.com/vercel/next.js' },
     });
 
-    fireEvent.click(screen.getByRole('button', { name: '選擇本機資料夾' }));
+    fireEvent.click(screen.getByRole('button', { name: '選擇輸出目錄' }));
 
     await waitFor(() => {
       expect(showDirectoryPickerMock).toHaveBeenCalledTimes(1);
     });
 
-    fireEvent.click(screen.getByRole('button', { name: '開始翻譯' }));
+    fireEvent.click(screen.getByRole('button', { name: '建立翻譯任務' }));
 
     expect(onSubmit).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -252,15 +252,15 @@ describe('JobForm', () => {
       target: { value: 'github' },
     });
 
-    fireEvent.change(screen.getByLabelText('GitHub Repo URL'), {
+    fireEvent.change(screen.getByLabelText('GitHub 倉庫網址'), {
       target: { value: 'https://github.com/vercel/next.js' },
     });
 
-    fireEvent.change(screen.getByLabelText('output 輸出資料夾位置'), {
+    fireEvent.change(screen.getByLabelText('輸出目錄路徑'), {
       target: { value: '/tmp/project-translate-output' },
     });
 
-    fireEvent.click(screen.getByRole('button', { name: '開始翻譯' }));
+    fireEvent.click(screen.getByRole('button', { name: '建立翻譯任務' }));
 
     expect(onSubmit).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -288,11 +288,11 @@ describe('JobForm', () => {
       target: { value: 'github' },
     });
 
-    fireEvent.change(screen.getByLabelText('GitHub Repo URL'), {
+    fireEvent.change(screen.getByLabelText('GitHub 倉庫網址'), {
       target: { value: 'https://github.com/vercel/next.js' },
     });
 
-    fireEvent.change(screen.getByLabelText('output 輸出資料夾位置'), {
+    fireEvent.change(screen.getByLabelText('輸出目錄路徑'), {
       target: { value: '/tmp/project-translate-japanese' },
     });
 
@@ -300,7 +300,7 @@ describe('JobForm', () => {
       target: { value: 'Japanese (ja-JP)' },
     });
 
-    fireEvent.click(screen.getByRole('button', { name: '開始翻譯' }));
+    fireEvent.click(screen.getByRole('button', { name: '建立翻譯任務' }));
 
     expect(onSubmit).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -322,14 +322,14 @@ describe('JobForm', () => {
       />,
     );
 
-    expect(screen.getByText('OpenAI：未設定')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: '開始翻譯' })).toBeDisabled();
+    expect(screen.getByText('OpenAI：未就緒')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '建立翻譯任務' })).toBeDisabled();
 
     fireEvent.change(screen.getByLabelText(/翻譯引擎/), {
       target: { value: 'local' },
     });
 
-    expect(screen.getByRole('button', { name: '開始翻譯' })).not.toBeDisabled();
+    expect(screen.getByRole('button', { name: '建立翻譯任務' })).not.toBeDisabled();
   });
 
   it('accepts key input fields and saves credentials', async () => {
@@ -353,7 +353,7 @@ describe('JobForm', () => {
       target: { value: 'sk-gemini-demo' },
     });
 
-    fireEvent.click(screen.getByRole('button', { name: '儲存金鑰' }));
+    fireEvent.click(screen.getByRole('button', { name: '儲存 API 金鑰' }));
 
     await waitFor(() => {
       expect(onSaveCredentials).toHaveBeenCalledWith({

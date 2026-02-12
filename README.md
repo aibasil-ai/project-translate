@@ -1,23 +1,24 @@
 # Project Translator (Traditional Chinese)
 
-一個使用 `Next.js` 建置的網頁系統，支援以下兩種輸入方式：
+一個使用 `Next.js` 建置的文件翻譯系統，提供標準 SaaS 風格操作介面，支援以下兩種輸入方式：
 
-1. 選取本機專案資料夾（資料夾內多檔上傳）
-2. 輸入公開 GitHub repo URL（自動 clone）
+1. 選擇本機專案資料夾（資料夾內多檔上傳）
+2. 輸入公開 GitHub 倉庫網址（自動 clone）
 
-系統會將指定副檔名文件翻譯成繁體中文，並輸出：
+系統會將指定副檔名文件翻譯為目標語言（預設繁體中文），並輸出：
 
-- 翻譯後資料夾（伺服器端 output）
+- 翻譯結果檔案（伺服器端 output）
 - 可下載 ZIP
+- 可同步到你指定的本機輸出目錄
 
-> 設計重點：**翻譯永遠在 `output` 目錄，不覆寫 `input` 原始檔。**
+> 設計重點：**翻譯結果永遠輸出到 `output`，不覆寫 `input` 原始檔。**
 
 ## Tech Stack
 
 - Next.js 16 (App Router, Route Handlers)
 - TypeScript
 - Vitest + Testing Library
-- Archiver (ZIP 輸出)
+- Archiver（ZIP 輸出）
 
 ## 支援翻譯引擎
 
@@ -53,7 +54,7 @@ npm install
 cp .env.example .env.local
 ```
 
-再依需求填入 API 金鑰（至少填你要用的 provider）。
+再依需求填入 API 金鑰（至少填你要使用的 provider）。
 
 ### 3) 啟動開發環境
 
@@ -65,7 +66,7 @@ npm run dev
 
 ### 4) 若出現「無法連線 localhost」
 
-若你的環境有設定 `HTTP_PROXY` / `http_proxy`，有機會把本機流量錯誤導到 proxy，導致連不上 `localhost:3000`。
+若你的環境有設定 `HTTP_PROXY` / `http_proxy`，可能將本機流量錯誤導到 proxy，導致連不上 `localhost:3000`。
 
 先檢查：
 
@@ -86,25 +87,36 @@ export no_proxy=localhost,127.0.0.1
 curl -I http://localhost:3000
 ```
 
+## 介面導覽（SaaS）
+
+目前 UI 為控制台型介面，包含：
+
+- 側邊導覽：`總覽儀表板`、`建立翻譯任務`、`任務狀態中心`
+- Topbar 狀態摘要：引擎可用數、任務狀態徽章
+- 工作區雙卡片：左側任務建立表單、右側任務執行狀態
+- 響應式導覽：小螢幕可折疊側邊欄，支援錨點切換與高亮
+
 ## 使用方式
 
 ### A. 本機專案資料夾
 
-1. 資料來源選 `本機專案資料夾`
-2. 選翻譯引擎
+1. 在 `資料來源` 選 `本機專案資料夾`
+2. 選擇翻譯引擎與翻譯模型
 3. 選擇目標語言（含 `日語 (ja-JP)`）
-4. **按鈕選擇本機 output 輸出資料夾（必填）**
-5. 調整副檔名白名單（預設 `.md,.txt,.rst,.adoc`）
-6. 選取資料夾並送出
-7. 在任務狀態查看進度條百分比，完成後下載 ZIP（翻譯檔案會輸出到你指定的路徑）
+4. 設定 `輸出目錄路徑`（或按 `選擇輸出目錄`）
+5. 調整 `可翻譯副檔名（逗號分隔）`（預設 `.md,.txt,.rst,.adoc`）
+6. 選擇專案資料夾
+7. 按 `建立翻譯任務`
+8. 在 `任務執行狀態` 追蹤進度，完成後可下載 ZIP
 
-### B. GitHub Repo URL
+### B. GitHub 倉庫網址
 
-1. 資料來源選 `GitHub Repo URL`
-2. 填入公開 repo（格式 `https://github.com/owner/repo`）
-3. 選擇目標語言（含 `日語 (ja-JP)`）
-4. **按鈕選擇本機 output 輸出資料夾（必填）**
-5. 送出後系統會 clone 並翻譯，右側可看到進度條
+1. 在 `資料來源` 選 `GitHub 倉庫網址`
+2. 填入公開倉庫網址（格式 `https://github.com/owner/repo`）
+3. 選擇翻譯引擎、模型與目標語言
+4. 設定 `輸出目錄路徑`（或按 `選擇輸出目錄`）
+5. 按 `建立翻譯任務`
+6. 右側 `任務執行狀態` 會即時更新進度
 
 ## 測試與驗證
 
@@ -126,14 +138,14 @@ npm run build
 
 ## 目前限制
 
-- GitHub 僅支援公開 repo
+- GitHub 只支援公開倉庫
 - 任務儲存在記憶體（process restart 會遺失狀態）
 - 以單機背景工作處理，不含分散式 queue
 - 有上傳大小與檔案數限制（避免濫用）
 
 ## 後續可擴充
 
-- 私有 repo（GitHub token / OAuth）
+- 私有倉庫（GitHub token / OAuth）
 - 任務佇列（Redis/BullMQ）
 - 更完整的 local model provider（如 Ollama）
 - 任務清理排程與持久化儲存
