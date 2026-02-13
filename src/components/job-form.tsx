@@ -88,6 +88,36 @@ const targetLanguageOptions = [
   { label: '英語 (en-US)', value: 'English (en-US)' },
 ];
 
+const OPENAI_MODEL_OPTIONS = ['gpt-4.1-mini', 'gpt-5-mini'] as const;
+
+function getDefaultModelByTranslator(
+  translator: keyof ProviderDefaultModelMap,
+  defaultModels: ProviderDefaultModelMap,
+) {
+  if (translator === 'openai') {
+    return OPENAI_MODEL_OPTIONS[0];
+  }
+
+  return defaultModels[translator];
+}
+
+function getModelOptionsByTranslator(
+  translator: keyof ProviderDefaultModelMap,
+  defaultModels: ProviderDefaultModelMap,
+) {
+  if (translator === 'openai') {
+    return [...OPENAI_MODEL_OPTIONS];
+  }
+
+  const defaultModel = getDefaultModelByTranslator(translator, defaultModels).trim();
+  return defaultModel ? [defaultModel] : [];
+}
+
+function resolveSelectedModelPreset(model: string, options: string[]) {
+  const trimmedModel = model.trim();
+  return options.includes(trimmedModel) ? trimmedModel : '__custom__';
+}
+
 function resolveDirectoryDisplayPath(directoryHandle: OutputDirectoryHandle) {
   const fullPath = directoryHandle.fullPath?.trim();
   if (fullPath) {
@@ -114,7 +144,7 @@ export function JobForm({
 }: JobFormProps) {
   const [sourceType, setSourceType] = useState<SourceType>('folder');
   const [translator, setTranslator] = useState<keyof ProviderStatusMap>('openai');
-  const [model, setModel] = useState(defaultModels.openai);
+  const [model, setModel] = useState(getDefaultModelByTranslator('openai', defaultModels));
   const [isModelCustomized, setIsModelCustomized] = useState(false);
   const [targetLanguage, setTargetLanguage] = useState('Traditional Chinese (zh-TW)');
   const [outputFolder, setOutputFolder] = useState('');
@@ -143,15 +173,19 @@ export function JobForm({
   }, []);
 
   useEffect(() => {
-    setModel(defaultModels[translator]);
-    setIsModelCustomized(false);
-  }, [translator]);
-
-  useEffect(() => {
     if (!isModelCustomized) {
-      setModel(defaultModels[translator]);
+      setModel(getDefaultModelByTranslator(translator, defaultModels));
     }
   }, [defaultModels, translator, isModelCustomized]);
+
+  const modelOptions = useMemo(
+    () => getModelOptionsByTranslator(translator, defaultModels),
+    [translator, defaultModels],
+  );
+  const selectedModelPreset = useMemo(
+    () => resolveSelectedModelPreset(model, modelOptions),
+    [model, modelOptions],
+  );
 
   const isSelectedProviderReady = providerStatus[translator];
   const providerBlockingMessage = useMemo(() => {
@@ -268,7 +302,7 @@ export function JobForm({
       return;
     }
 
-    const selectedModel = model.trim() || defaultModels[translator];
+    const selectedModel = model.trim() || getDefaultModelByTranslator(translator, defaultModels);
 
     void onSubmit({
       sourceType,
@@ -287,39 +321,115 @@ export function JobForm({
     <form onSubmit={handleSubmit} className="panel">
       <h2>建立翻譯任務</h2>
 
+      <label className="field" htmlFor="translator">
+        <span>翻譯引擎</span>
+        <select
+          id="translator"
+          value={translator}
+          onChange={(event) => {
+            const nextTranslator = event.target.value as keyof ProviderStatusMap;
+            setTranslator(nextTranslator);
+            setModel(getDefaultModelByTranslator(nextTranslator, defaultModels));
+            setIsModelCustomized(false);
+          }}
+          disabled={isSubmitting}
+        >
+          <option value="openai">OpenAI</option>
+          <option value="gemini">Gemini</option>
+          <option value="local">Local Adapter</option>
+        </select>
+        {!isProviderStatusLoading && !isSelectedProviderReady ? (
+          <small className="error">{providerLabelMap[translator]} 尚未完成金鑰設定</small>
+        ) : null}
+      </label>
+
+      <label className="field" htmlFor="model">
+        <span>翻譯模型</span>
+        <div className="inline-actions">
+          <select
+            id="modelPreset"
+            aria-label="模型選項"
+            value={selectedModelPreset}
+            onChange={(event) => {
+              const nextPreset = event.target.value;
+              if (nextPreset === '__custom__') {
+                return;
+              }
+              setModel(nextPreset);
+              setIsModelCustomized(false);
+            }}
+            disabled={isSubmitting}
+          >
+            {modelOptions.map((option) => (
+              <option key={option} value={option}>
+                {option}
+              </option>
+            ))}
+            <option value="__custom__">自訂輸入</option>
+          </select>
+          <input
+            id="model"
+            value={model}
+            onChange={(event) => {
+              setModel(event.target.value);
+              setIsModelCustomized(true);
+            }}
+            placeholder={getDefaultModelByTranslator(translator, defaultModels)}
+            disabled={isSubmitting}
+          />
+          <button
+            type="button"
+            onClick={() => {
+              setModel(getDefaultModelByTranslator(translator, defaultModels));
+              setIsModelCustomized(false);
+            }}
+            disabled={isSubmitting}
+          >
+            使用預設值
+          </button>
+        </div>
+        <small className="hint">系統預設模型：{getDefaultModelByTranslator(translator, defaultModels)}</small>
+      </label>
+
       <div className="provider-status" aria-live="polite">
         <strong>API 金鑰設定</strong>
-        <label className="field" htmlFor="openaiApiKey">
-          <span>OpenAI API Key</span>
-          <input
-            id="openaiApiKey"
-            type="password"
-            value={openaiApiKey}
-            onChange={(event) => setOpenaiApiKey(event.target.value)}
-            placeholder="sk-..."
+        {translator === 'openai' ? (
+          <label className="field" htmlFor="openaiApiKey">
+            <span>OpenAI API Key</span>
+            <input
+              id="openaiApiKey"
+              type="password"
+              value={openaiApiKey}
+              onChange={(event) => setOpenaiApiKey(event.target.value)}
+              placeholder="sk-..."
+              disabled={isSubmitting || isSavingCredentials}
+            />
+          </label>
+        ) : null}
+        {translator === 'gemini' ? (
+          <label className="field" htmlFor="geminiApiKey">
+            <span>Gemini API Key</span>
+            <input
+              id="geminiApiKey"
+              type="password"
+              value={geminiApiKey}
+              onChange={(event) => setGeminiApiKey(event.target.value)}
+              placeholder="AIza..."
+              disabled={isSubmitting || isSavingCredentials}
+            />
+          </label>
+        ) : null}
+        {translator !== 'local' ? (
+          <button
+            type="button"
+            onClick={() => {
+              void handleSaveCredentials();
+            }}
             disabled={isSubmitting || isSavingCredentials}
-          />
-        </label>
-        <label className="field" htmlFor="geminiApiKey">
-          <span>Gemini API Key</span>
-          <input
-            id="geminiApiKey"
-            type="password"
-            value={geminiApiKey}
-            onChange={(event) => setGeminiApiKey(event.target.value)}
-            placeholder="AIza..."
-            disabled={isSubmitting || isSavingCredentials}
-          />
-        </label>
-        <button
-          type="button"
-          onClick={() => {
-            void handleSaveCredentials();
-          }}
-          disabled={isSubmitting || isSavingCredentials}
-        >
-          {isSavingCredentials ? '儲存中...' : '儲存 API 金鑰'}
-        </button>
+          >
+            {isSavingCredentials ? '儲存中...' : '儲存 API 金鑰'}
+          </button>
+        ) : null}
 
         <strong>引擎可用狀態</strong>
         <ul className="files">
@@ -354,50 +464,6 @@ export function JobForm({
           />
         </label>
       ) : null}
-
-      <label className="field" htmlFor="translator">
-        <span>翻譯引擎</span>
-        <select
-          id="translator"
-          value={translator}
-          onChange={(event) => setTranslator(event.target.value as keyof ProviderStatusMap)}
-          disabled={isSubmitting}
-        >
-          <option value="openai">OpenAI</option>
-          <option value="gemini">Gemini</option>
-          <option value="local">Local Adapter</option>
-        </select>
-        {!isProviderStatusLoading && !isSelectedProviderReady ? (
-          <small className="error">{providerLabelMap[translator]} 尚未完成金鑰設定</small>
-        ) : null}
-      </label>
-
-      <label className="field" htmlFor="model">
-        <span>翻譯模型</span>
-        <div className="inline-actions">
-          <input
-            id="model"
-            value={model}
-            onChange={(event) => {
-              setModel(event.target.value);
-              setIsModelCustomized(true);
-            }}
-            placeholder={defaultModels[translator]}
-            disabled={isSubmitting}
-          />
-          <button
-            type="button"
-            onClick={() => {
-              setModel(defaultModels[translator]);
-              setIsModelCustomized(false);
-            }}
-            disabled={isSubmitting}
-          >
-            使用預設值
-          </button>
-        </div>
-        <small className="hint">系統預設模型：{defaultModels[translator]}</small>
-      </label>
 
       <label className="field" htmlFor="targetLanguage">
         <span>目標語言</span>

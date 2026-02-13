@@ -19,6 +19,14 @@ function createFolderFile(name: string, relativePath: string, content = 'sample'
   return file as File & { webkitRelativePath: string };
 }
 
+function getModelInputElement() {
+  const modelInput = document.getElementById('model');
+  if (!(modelInput instanceof HTMLInputElement)) {
+    throw new Error('Expected model input #model to exist');
+  }
+  return modelInput;
+}
+
 describe('JobForm', () => {
   it('requires output directory path before submit', () => {
     const onSubmit = vi.fn().mockResolvedValue(undefined);
@@ -74,7 +82,7 @@ describe('JobForm', () => {
       target: { value: '/tmp/project-translate-output' },
     });
 
-    fireEvent.change(screen.getByRole('textbox', { name: /翻譯模型/ }), {
+    fireEvent.change(getModelInputElement(), {
       target: { value: 'gpt-4o-mini' },
     });
 
@@ -87,7 +95,7 @@ describe('JobForm', () => {
     );
   });
 
-  it('shows github repo field directly below source type only in github mode', () => {
+  it('shows engine-specific api key field only for selected translator', () => {
     render(
       <JobForm
         onSubmit={vi.fn()}
@@ -98,31 +106,85 @@ describe('JobForm', () => {
       />,
     );
 
-    expect(screen.queryByLabelText('GitHub 倉庫網址')).not.toBeInTheDocument();
+    expect(screen.getByLabelText('OpenAI API Key')).toBeInTheDocument();
+    expect(screen.queryByLabelText('Gemini API Key')).not.toBeInTheDocument();
+
+    fireEvent.change(screen.getByLabelText(/翻譯引擎/), {
+      target: { value: 'gemini' },
+    });
+
+    expect(screen.queryByLabelText('OpenAI API Key')).not.toBeInTheDocument();
+    expect(screen.getByLabelText('Gemini API Key')).toBeInTheDocument();
+
+    fireEvent.change(screen.getByLabelText('翻譯引擎'), {
+      target: { value: 'local' },
+    });
+
+    expect(screen.queryByLabelText('OpenAI API Key')).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('Gemini API Key')).not.toBeInTheDocument();
+  });
+
+  it('keeps translator and model at top and provides openai model options', () => {
+    render(
+      <JobForm
+        onSubmit={vi.fn()}
+        isSubmitting={false}
+        providerStatus={{ openai: true, gemini: true, local: true }}
+        defaultModels={defaultModels}
+        onSaveCredentials={vi.fn()}
+      />,
+    );
+
+    const translatorLabel = screen.getByLabelText(/翻譯引擎/).closest('label');
+    const sourceTypeLabel = screen.getByLabelText('資料來源').closest('label');
+
+    expect(translatorLabel).not.toBeNull();
+    expect(sourceTypeLabel).not.toBeNull();
+
+    const isTranslatorBeforeSourceType = Boolean(
+      translatorLabel &&
+        sourceTypeLabel &&
+        translatorLabel.compareDocumentPosition(sourceTypeLabel) & Node.DOCUMENT_POSITION_FOLLOWING,
+    );
+    expect(isTranslatorBeforeSourceType).toBe(true);
+
+    const modelInput = getModelInputElement();
+    expect(modelInput).toHaveValue('gpt-4.1-mini');
+
+    const modelPresetSelect = screen.getByLabelText('模型選項');
+    const modelOptions = Array.from(modelPresetSelect.querySelectorAll('option')).map((item) =>
+      item.getAttribute('value'),
+    );
+    expect(modelOptions).toContain('gpt-4.1-mini');
+    expect(modelOptions).toContain('gpt-5-mini');
+
+    fireEvent.change(modelPresetSelect, {
+      target: { value: 'gpt-5-mini' },
+    });
+    expect(modelInput).toHaveValue('gpt-5-mini');
+
+    fireEvent.change(modelInput, {
+      target: { value: 'openai-custom-model' },
+    });
+    expect(modelInput).toHaveValue('openai-custom-model');
 
     fireEvent.change(screen.getByLabelText('資料來源'), {
       target: { value: 'github' },
     });
 
     const repoInput = screen.getByLabelText('GitHub 倉庫網址');
-    const translatorSelect = screen.getByLabelText('翻譯引擎');
-
     const repoLabel = repoInput.closest('label');
-    const translatorLabel = translatorSelect.closest('label');
-
     expect(repoLabel).not.toBeNull();
-    expect(translatorLabel).not.toBeNull();
 
-    const isRepoBeforeTranslator =
+    const isSourceTypeBeforeRepo =
       Boolean(
-        repoLabel &&
-          translatorLabel &&
-          repoLabel.compareDocumentPosition(translatorLabel) & Node.DOCUMENT_POSITION_FOLLOWING,
+        sourceTypeLabel &&
+          repoLabel &&
+          sourceTypeLabel.compareDocumentPosition(repoLabel) & Node.DOCUMENT_POSITION_FOLLOWING,
       );
 
-    expect(isRepoBeforeTranslator).toBe(true);
+    expect(isSourceTypeBeforeRepo).toBe(true);
   });
-
 
   it('replaces previous folder files when a new project folder is selected', () => {
     const onSubmit = vi.fn().mockResolvedValue(undefined);
@@ -384,6 +446,10 @@ describe('JobForm', () => {
 
     fireEvent.change(screen.getByLabelText('OpenAI API Key'), {
       target: { value: 'sk-openai-demo' },
+    });
+
+    fireEvent.change(screen.getByLabelText(/翻譯引擎/), {
+      target: { value: 'gemini' },
     });
 
     fireEvent.change(screen.getByLabelText('Gemini API Key'), {
