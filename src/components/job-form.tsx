@@ -342,6 +342,19 @@ export function JobForm({
         </select>
       </label>
 
+      {sourceType === 'github' ? (
+        <label key="github-source" className="field" htmlFor="repoUrl">
+          <span>GitHub 倉庫網址</span>
+          <input
+            id="repoUrl"
+            value={repoUrl}
+            onChange={(event) => setRepoUrl(event.target.value)}
+            placeholder="https://github.com/owner/repo"
+            disabled={isSubmitting}
+          />
+        </label>
+      ) : null}
+
       <label className="field" htmlFor="translator">
         <span>翻譯引擎</span>
         <select
@@ -456,18 +469,7 @@ export function JobForm({
         />
       </label>
 
-      {sourceType === 'github' ? (
-        <label key="github-source" className="field" htmlFor="repoUrl">
-          <span>GitHub 倉庫網址</span>
-          <input
-            id="repoUrl"
-            value={repoUrl}
-            onChange={(event) => setRepoUrl(event.target.value)}
-            placeholder="https://github.com/owner/repo"
-            disabled={isSubmitting}
-          />
-        </label>
-      ) : (
+      {sourceType !== 'github' ? (
         <label key="folder-source" className="field" htmlFor="projectFolder">
           <span>選擇專案資料夾</span>
           <input
@@ -480,7 +482,7 @@ export function JobForm({
           />
           <small>{files.length > 0 ? `已選取 ${files.length} 個檔案` : '尚未選擇檔案'}</small>
         </label>
-      )}
+      ) : null}
 
       {validationMessage ? <p className="error">{validationMessage}</p> : null}
       {providerBlockingMessage ? <p className="hint">{providerBlockingMessage}</p> : null}

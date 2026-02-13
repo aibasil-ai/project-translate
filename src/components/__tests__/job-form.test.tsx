@@ -87,6 +87,42 @@ describe('JobForm', () => {
     );
   });
 
+  it('shows github repo field directly below source type only in github mode', () => {
+    render(
+      <JobForm
+        onSubmit={vi.fn()}
+        isSubmitting={false}
+        providerStatus={{ openai: true, gemini: true, local: true }}
+        defaultModels={defaultModels}
+        onSaveCredentials={vi.fn()}
+      />,
+    );
+
+    expect(screen.queryByLabelText('GitHub 倉庫網址')).not.toBeInTheDocument();
+
+    fireEvent.change(screen.getByLabelText('資料來源'), {
+      target: { value: 'github' },
+    });
+
+    const repoInput = screen.getByLabelText('GitHub 倉庫網址');
+    const translatorSelect = screen.getByLabelText('翻譯引擎');
+
+    const repoLabel = repoInput.closest('label');
+    const translatorLabel = translatorSelect.closest('label');
+
+    expect(repoLabel).not.toBeNull();
+    expect(translatorLabel).not.toBeNull();
+
+    const isRepoBeforeTranslator =
+      Boolean(
+        repoLabel &&
+          translatorLabel &&
+          repoLabel.compareDocumentPosition(translatorLabel) & Node.DOCUMENT_POSITION_FOLLOWING,
+      );
+
+    expect(isRepoBeforeTranslator).toBe(true);
+  });
+
 
   it('replaces previous folder files when a new project folder is selected', () => {
     const onSubmit = vi.fn().mockResolvedValue(undefined);
