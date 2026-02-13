@@ -6,6 +6,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
   cleanupGithubCloneArtifacts,
+  resolveGithubCheckoutStrategy,
   resolveModelForTranslator,
   validateOutputDirectoryPath,
 } from '@/lib/jobs/service';
@@ -115,6 +116,38 @@ describe('cleanupGithubCloneArtifacts', () => {
       await expect(fs.access(inputRoot)).resolves.toBeUndefined();
     } finally {
       await fs.rm(root, { recursive: true, force: true });
+    }
+  });
+});
+
+describe('resolveGithubCheckoutStrategy', () => {
+  it('uses archive strategy on vercel runtime', () => {
+    const originalVercel = process.env.VERCEL;
+
+    process.env.VERCEL = '1';
+    try {
+      expect(resolveGithubCheckoutStrategy()).toBe('archive');
+    } finally {
+      if (originalVercel === undefined) {
+        delete process.env.VERCEL;
+      } else {
+        process.env.VERCEL = originalVercel;
+      }
+    }
+  });
+
+  it('uses git strategy outside vercel runtime', () => {
+    const originalVercel = process.env.VERCEL;
+
+    delete process.env.VERCEL;
+    try {
+      expect(resolveGithubCheckoutStrategy()).toBe('git');
+    } finally {
+      if (originalVercel === undefined) {
+        delete process.env.VERCEL;
+      } else {
+        process.env.VERCEL = originalVercel;
+      }
     }
   });
 });

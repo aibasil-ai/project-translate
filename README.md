@@ -3,7 +3,7 @@
 一個使用 `Next.js` 建置的文件翻譯系統，提供標準 SaaS 風格操作介面，支援以下兩種輸入方式：
 
 1. 選擇本機專案資料夾（資料夾內多檔上傳）
-2. 輸入公開 GitHub 倉庫網址（自動 clone）
+2. 輸入公開 GitHub 倉庫網址（本機使用 clone；Vercel 使用 archive 下載）
 
 系統會將指定副檔名文件翻譯為目標語言（預設繁體中文），並輸出：
 
@@ -54,7 +54,8 @@ npm install
 cp .env.example .env.local
 ```
 
-再依需求填入 API 金鑰（至少填你要使用的 provider）。
+再依需求填入 API 金鑰（至少填你要使用的 provider）。  
+若會部署到 Vercel，建議另外設定 `GITHUB_TOKEN`，避免 GitHub 匿名 API rate limit 影響 GitHub 倉庫來源任務。
 
 ### 3) 啟動開發環境
 
@@ -118,6 +119,8 @@ curl -I http://localhost:3000
 5. 按 `建立翻譯任務`
 6. 右側 `任務執行狀態` 會即時更新進度
 
+> Vercel 部署注意：Serverless Runtime 不保證可用 `git` 指令，系統會自動改為 GitHub archive API 下載來源；若遇到 rate limit，請在環境變數設定 `GITHUB_TOKEN`。
+
 ## 測試與驗證
 
 ```bash
@@ -139,6 +142,7 @@ npm run build
 ## 目前限制
 
 - GitHub 只支援公開倉庫
+- Vercel 環境的 GitHub 來源依賴 GitHub archive API，可能受到匿名 rate limit 影響（可用 `GITHUB_TOKEN` 緩解）
 - 任務儲存在記憶體（process restart 會遺失狀態）
 - 以單機背景工作處理，不含分散式 queue
 - 有上傳大小與檔案數限制（避免濫用）

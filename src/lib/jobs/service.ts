@@ -1,9 +1,16 @@
 import { execFile as execFileCallback } from 'node:child_process';
 import crypto from 'node:crypto';
+import { createWriteStream } from 'node:fs';
 import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
+import { Readable } from 'node:stream';
+import { pipeline as streamPipeline } from 'node:stream/promises';
+import type { ReadableStream as NodeReadableStream } from 'node:stream/web';
 import { promisify } from 'node:util';
+import { createGunzip } from 'node:zlib';
+
+import tar from 'tar-stream';
 
 import { listProjectFiles } from '@/lib/file-scan';
 import { PipelineCancelledError, runTranslationPipeline } from '@/lib/jobs/pipeline';
@@ -246,6 +253,146 @@ export function validatePublicGithubUrl(repoUrl: string) {
   return `https://github.com/${normalizedRepo}.git`;
 }
 
+export type GithubCheckoutStrategy = 'git' | 'archive';
+
+export function resolveGithubCheckoutStrategy(env: NodeJS.ProcessEnv = process.env): GithubCheckoutStrategy {
+  return env.VERCEL ? 'archive' : 'git';
+}
+
+function parseGithubOwnerAndRepo(repoUrl: string) {
+  const parsedUrl = new URL(repoUrl);
+  const pathParts = parsedUrl.pathname.replace(/\.git$/i, '').split('/').filter(Boolean);
+
+  if (pathParts.length !== 2) {
+    throw new UserInputError('Repository URL must be in /owner/repo format');
+  }
+
+  return {
+    owner: pathParts[0],
+    repo: pathParts[1],
+  };
+}
+
+function buildGithubArchiveApiUrl(repoUrl: string) {
+  const { owner, repo } = parseGithubOwnerAndRepo(repoUrl);
+  return `https://api.github.com/repos/${owner}/${repo}/tarball`;
+}
+
+function createGithubArchiveRequestHeaders() {
+  const headers: Record<string, string> = {
+    Accept: 'application/vnd.github+json',
+    'User-Agent': 'project-translate',
+    'X-GitHub-Api-Version': '2022-11-28',
+  };
+
+  const githubToken = process.env.GITHUB_TOKEN?.trim();
+  if (githubToken) {
+    headers.Authorization = `Bearer ${githubToken}`;
+  }
+
+  return headers;
+}
+
+function normalizeArchiveEntryPath(entryName: string) {
+  const normalizedEntryName = entryName.replace(/\\/g, '/').trim();
+  if (!normalizedEntryName) {
+    return null;
+  }
+
+  const segments = normalizedEntryName.split('/').filter(Boolean);
+  if (segments.length <= 1) {
+    return null;
+  }
+
+  const relativePath = segments.slice(1).join('/');
+
+  try {
+    return normalizeRelativePath(relativePath);
+  } catch {
+    return null;
+  }
+}
+
+async function downloadGithubArchiveToInput(repoUrl: string, inputRoot: string) {
+  const repoTargetPath = path.join(inputRoot, 'repo');
+  await fs.mkdir(repoTargetPath, { recursive: true });
+
+  const archiveResponse = await fetch(buildGithubArchiveApiUrl(repoUrl), {
+    headers: createGithubArchiveRequestHeaders(),
+    redirect: 'follow',
+  });
+
+  if (archiveResponse.status === 404) {
+    throw new UserInputError('Repository not found or private. Only public repositories are supported');
+  }
+
+  if (archiveResponse.status === 403 || archiveResponse.status === 429) {
+    throw new UserInputError('GitHub API rate limit exceeded. Please configure GITHUB_TOKEN and retry');
+  }
+
+  if (!archiveResponse.ok) {
+    throw new Error(`Failed to download GitHub archive (status: ${archiveResponse.status})`);
+  }
+
+  if (!archiveResponse.body) {
+    throw new Error('GitHub archive response body is empty');
+  }
+
+  const extractor = tar.extract();
+  const extractionDone = new Promise<void>((resolve, reject) => {
+    extractor.once('finish', resolve);
+    extractor.once('error', reject);
+  });
+
+  extractor.on('entry', (header, stream, next) => {
+    const relativePath = normalizeArchiveEntryPath(header.name);
+    if (!relativePath || shouldIgnoreUploadPath(relativePath)) {
+      stream.resume();
+      next();
+      return;
+    }
+
+    if (header.type === 'directory') {
+      void fs
+        .mkdir(resolveSafePath(repoTargetPath, relativePath), { recursive: true })
+        .then(() => {
+          stream.resume();
+          next();
+        })
+        .catch((error) => {
+          next(error as Error);
+        });
+      return;
+    }
+
+    if (header.type !== 'file') {
+      stream.resume();
+      next();
+      return;
+    }
+
+    const absolutePath = resolveSafePath(repoTargetPath, relativePath);
+    void fs
+      .mkdir(path.dirname(absolutePath), { recursive: true })
+      .then(() => streamPipeline(stream, createWriteStream(absolutePath)))
+      .then(() => {
+        next();
+      })
+      .catch((error) => {
+        next(error as Error);
+      });
+  });
+
+  await streamPipeline(
+    Readable.fromWeb(archiveResponse.body as unknown as NodeReadableStream),
+    createGunzip(),
+    extractor,
+  );
+  await extractionDone;
+
+  return repoTargetPath;
+}
+
 async function stageUploadedFiles(inputRoot: string, files: File[], paths: string[]) {
   if (!files.length) {
     throw new UserInputError('No files were uploaded');
@@ -291,12 +438,24 @@ async function stageUploadedFiles(inputRoot: string, files: File[], paths: strin
 }
 
 async function cloneGithubRepoToInput(repoUrl: string, inputRoot: string) {
+  if (resolveGithubCheckoutStrategy() === 'archive') {
+    return downloadGithubArchiveToInput(repoUrl, inputRoot);
+  }
+
   const repoTargetPath = path.join(inputRoot, 'repo');
 
-  await execFile('git', ['clone', '--depth=1', repoUrl, repoTargetPath], {
-    timeout: 120_000,
-    maxBuffer: 10 * 1024 * 1024,
-  });
+  try {
+    await execFile('git', ['clone', '--depth=1', repoUrl, repoTargetPath], {
+      timeout: 120_000,
+      maxBuffer: 10 * 1024 * 1024,
+    });
+  } catch (error) {
+    const errorCode = (error as NodeJS.ErrnoException | undefined)?.code;
+    if (errorCode === 'ENOENT') {
+      return downloadGithubArchiveToInput(repoUrl, inputRoot);
+    }
+    throw error;
+  }
 
   return repoTargetPath;
 }
